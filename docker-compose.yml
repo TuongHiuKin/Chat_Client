@@ -19,6 +19,7 @@ services:
       start_period: 15s
 
   chatserver:
+    image: tuonghiukin/chat-server:latest
     build:
       context: .
       dockerfile: ChatServer/Dockerfile
