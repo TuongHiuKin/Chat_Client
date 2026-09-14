@@ -49,22 +49,38 @@ var dbOptions = new DbContextOptionsBuilder<ChatDbContext>()
 
 using (var db = new ChatDbContext(dbOptions))
 {
-    bool connected = await db.Database.CanConnectAsync();
+    const int maxRetries = 10;
+    bool ready = false;
 
-    if (!connected)
+    for (int attempt = 1; attempt <= maxRetries; attempt++)
     {
-        Console.WriteLine("SQL SERVER CONNECTION FAILED! Check appsettings.json.");
-        Console.WriteLine("Press any key to exit...");
-        Console.ReadKey();
-        return;
+        try
+        {
+            Console.WriteLine($"[Attempt {attempt}/{maxRetries}] Connecting to SQL Server and ensuring database schema...");
+            await db.Database.EnsureCreatedAsync();
+            Console.WriteLine("SQL SERVER CONNECTED & Database schema ensured!");
+            ready = true;
+            break;
+        }
+        catch (Exception ex)
+        {
+            if (attempt == maxRetries)
+            {
+                Console.WriteLine($"SQL SERVER CONNECTION FAILED after {maxRetries} attempts: {ex.Message}");
+                if (!Console.IsInputRedirected)
+                {
+                    Console.WriteLine("Press any key to exit...");
+                    Console.ReadKey();
+                }
+                return;
+            }
+
+            Console.WriteLine($"Waiting for SQL Server ({ex.Message}). Retrying in 3 seconds...");
+            await Task.Delay(3000);
+        }
     }
 
-    Console.WriteLine("SQL SERVER CONNECTED!");
-
-    // Tự động tạo / cập nhật schema DB nếu chưa tồn tại
-    // Dùng EnsureCreated thay cho Migration trong giai đoạn phát triển
-    await db.Database.EnsureCreatedAsync();
-    Console.WriteLine("Database schema ensured.");
+    if (!ready) return;
 }
 
 // ── 3. Khởi động ChatServer ──────────────────────────────────────────────────
