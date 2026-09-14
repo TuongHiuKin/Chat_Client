@@ -8,11 +8,15 @@
 
 Dành cho người muốn chạy và trải nghiệm ngay lập tức **không cần cài đặt .NET SDK, không cần build mã nguồn, không cần cài đặt SQL Server**:
 
-| Thành phần | Đường dẫn tải / Lệnh chạy | Ghi chú |
+| Thành phần | Đường dẫn tải / Thao tác | Ghi chú |
 | :--- | :--- | :--- |
 | 💻 **ChatClient (Giao diện người dùng)** | [👉 **Bấm vào đây để tải `ChatClient.exe` (GitHub Releases)**](https://github.com/TuongHiuKin/Chat_Client/releases/latest/download/ChatClient.exe)<br>*(Hoặc xem danh sách phiên bản tại [Releases Page](https://github.com/TuongHiuKin/Chat_Client/releases))* | Ứng dụng độc lập (Self-contained), tải về nhấp đúp là chạy ngay trên Windows |
-| 🐳 **ChatServer (Docker Hub Image)** | [👉 **Xem Image trên Docker Hub: `tuonghiukin/chat-server`**](https://hub.docker.com/r/tuonghiukin/chat-server) | Lưu trữ chính thức trên Docker Hub |
-| 🚀 **Lệnh kéo Docker Image về máy** | `docker pull tuonghiukin/chat-server:latest` | Kéo image Server đã build sẵn từ Docker Hub |
+| 🐳 **ChatServer (Docker Hub Image)** | [👉 **Xem Image trên Docker Hub: `tuongkien/chat-server`**](https://hub.docker.com/repository/docker/tuongkien/chat-server) | Lưu trữ chính thức trên Docker Hub |
+
+#### 📥 Lệnh kéo nhanh Docker Image về máy (Copy & Chạy):
+```bash
+docker pull tuongkien/chat-server:latest
+```
 
 ### 🏃 Chạy toàn bộ hệ thống (Server + CSDL) chỉ với 1 câu lệnh:
 Chỉ cần tải file [**`docker-compose.yml`**](https://raw.githubusercontent.com/TuongHiuKin/Chat_Client/feature/docker/docker-compose.yml) về máy và chạy lệnh sau trong Terminal:
@@ -20,7 +24,7 @@ Chỉ cần tải file [**`docker-compose.yml`**](https://raw.githubusercontent.
 docker compose up -d
 ```
 > 💡 **Hệ thống sẽ tự động:**
-> 1. Kéo image `tuonghiukin/chat-server:latest` từ Docker Hub.
+> 1. Kéo image `tuongkien/chat-server:latest` từ Docker Hub.
 > 2. Kéo image CSDL Microsoft SQL Server 2022.
 > 3. Tự tạo CSDL `ChatDB`, toàn bộ bảng và mở cổng `5000`.
 > 4. Bây giờ bạn chỉ cần mở file `ChatClient.exe` lên là chat được ngay!
@@ -78,12 +82,12 @@ Nếu bạn sửa đổi mã nguồn của Server và muốn cập nhật image 
 ```bash
 docker login
 ```
-*(Nhập Username: `tuonghiukin` và Password/Personal Access Token)*.
+*(Nhập Username: `tuongkien` và Password/Personal Access Token)*.
 
 ### 2. Build và Push Image lên Docker Hub
 Tại thư mục `ChatSystem/`, chạy:
 ```bash
-# Build image với tag tuonghiukin/chat-server:latest
+# Build image với tag tuongkien/chat-server:latest
 docker compose build
 
 # Đẩy image lên Docker Hub
@@ -91,8 +95,8 @@ docker compose push
 ```
 Hoặc dùng lệnh `docker build / push` truyền thống:
 ```bash
-docker build -t tuonghiukin/chat-server:latest -f ChatServer/Dockerfile .
-docker push tuonghiukin/chat-server:latest
+docker build -t tuongkien/chat-server:latest -f ChatServer/Dockerfile .
+docker push tuongkien/chat-server:latest
 ```
 
 ### 3. Đính kèm file `ChatClient.exe` lên GitHub Releases
@@ -139,7 +143,7 @@ Dành cho môi trường phát triển cục bộ bằng Visual Studio hoặc .N
                               ▼
 +-------------------------------------------------------------+
 |               ChatServer (Docker Container)                 |
-|             Image: tuonghiukin/chat-server:latest           |
+|             Image: tuongkien/chat-server:latest           |
 |           - TcpListener lắng nghe kết nối đa luồng           |
 |           - Broadcast tin nhắn theo thời gian thực          |
 |           - Tự động đồng bộ schema CSDL với EF Core         |
