@@ -8,11 +8,15 @@
 
 Dành cho người muốn chạy và trải nghiệm ngay lập tức **không cần cài đặt .NET SDK, không cần build mã nguồn, không cần cài đặt SQL Server**:
 
-| Thành phần | Đường dẫn tải / Lệnh chạy | Ghi chú |
+| Thành phần | Đường dẫn tải / Thao tác | Ghi chú |
 | :--- | :--- | :--- |
 | 💻 **ChatClient (Giao diện người dùng)** | [👉 **Bấm vào đây để tải `ChatClient.exe` (GitHub Releases)**](https://github.com/TuongHiuKin/Chat_Client/releases/latest/download/ChatClient.exe)<br>*(Hoặc xem danh sách phiên bản tại [Releases Page](https://github.com/TuongHiuKin/Chat_Client/releases))* | Ứng dụng độc lập (Self-contained), tải về nhấp đúp là chạy ngay trên Windows |
-| 🐳 **ChatServer (Docker Hub Image)** | [👉 **Xem Image trên Docker Hub: `tuongkien/chat-server`**](https://hub.docker.com/r/tuongkien/chat-server) | Lưu trữ chính thức trên Docker Hub |
-| 🚀 **Lệnh kéo Docker Image về máy** | `docker pull tuongkien/chat-server:latest` | Kéo image Server đã build sẵn từ Docker Hub |
+| 🐳 **ChatServer (Docker Hub Image)** | [👉 **Xem Image trên Docker Hub: `tuongkien/chat-server`**](https://hub.docker.com/repository/docker/tuongkien/chat-server) | Lưu trữ chính thức trên Docker Hub |
+
+#### 📥 Lệnh kéo nhanh Docker Image về máy (Copy & Chạy):
+```bash
+docker pull tuongkien/chat-server:latest
+```
 
 ### 🏃 Chạy toàn bộ hệ thống (Server + CSDL) chỉ với 1 câu lệnh:
 Chỉ cần tải file [**`docker-compose.yml`**](https://raw.githubusercontent.com/TuongHiuKin/Chat_Client/feature/docker/docker-compose.yml) về máy và chạy lệnh sau trong Terminal:
