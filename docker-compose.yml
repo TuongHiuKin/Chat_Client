@@ -1,0 +1,38 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: chat_sqlserver
+    restart: unless-stopped
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=Password@12345
+      - MSSQL_PID=Developer
+    ports:
+      - "14333:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Password@12345' -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  chatserver:
+    build:
+      context: .
+      dockerfile: ChatServer/Dockerfile
+    container_name: chat_server
+    restart: unless-stopped
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    environment:
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=ChatDB;User Id=sa;Password=Password@12345;TrustServerCertificate=True
+      - ServerSettings__Host=0.0.0.0
+      - ServerSettings__Port=5000
+
+volumes:
+  mssql_data:
