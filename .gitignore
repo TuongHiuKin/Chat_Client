@@ -1,0 +1,27 @@
+## Build & Output
+bin/
+obj/
+out/
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+
+## Visual Studio & IDEs
+.vs/
+.vscode/
+.idea/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+*.pubxml.user
+
+## Configuration & Secrets
+**/appsettings.json
+**/appsettings.*.json
+!**/appsettings.example.json
+
+## Logs & Temp files
+*.log
+*.tmp
+*.crash
