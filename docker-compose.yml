@@ -19,7 +19,7 @@ services:
       start_period: 15s
 
   chatserver:
-    image: tuongkien/chat-server:latest
+    image: tuongkien/chat-server:no-db
     build:
       context: .
       dockerfile: ChatServer/Dockerfile

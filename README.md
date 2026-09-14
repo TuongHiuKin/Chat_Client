@@ -4,195 +4,75 @@
 
 ---
 
-## ⚡ Tải Nhanh & Trải Nghiệm Ngay (Quick Start)
+## 💻 1. Tải Ứng Dụng Client (ChatClient.exe)
 
-Dành cho người muốn chạy và trải nghiệm ngay lập tức **không cần cài đặt .NET SDK, không cần build mã nguồn, không cần cài đặt SQL Server**:
+Ứng dụng Client chạy trực tiếp trên Windows (Self-contained, không cần cài đặt .NET SDK hay Visual Studio):
 
-| Thành phần | Đường dẫn tải / Thao tác | Ghi chú |
-| :--- | :--- | :--- |
-| 💻 **ChatClient (Giao diện người dùng)** | [👉 **Bấm vào đây để tải `ChatClient.exe` (GitHub Releases)**](https://github.com/TuongHiuKin/Chat_Client/releases/latest/download/ChatClient.exe)<br>*(Hoặc xem danh sách phiên bản tại [Releases Page](https://github.com/TuongHiuKin/Chat_Client/releases))* | Ứng dụng độc lập (Self-contained), tải về nhấp đúp là chạy ngay trên Windows |
-| 🐳 **ChatServer (Docker Hub Image)** | [👉 **Xem Image trên Docker Hub: `tuongkien/chat-server`**](https://hub.docker.com/repository/docker/tuongkien/chat-server) | Lưu trữ chính thức trên Docker Hub |
-
-#### 📥 Lệnh kéo nhanh Docker Image về máy (Copy & Chạy):
-```bash
-docker pull tuongkien/chat-server:latest
-```
-
-### 🏃 Chạy toàn bộ hệ thống (Server + CSDL) chỉ với 1 câu lệnh:
-Chỉ cần tải file [**`docker-compose.yml`**](https://raw.githubusercontent.com/TuongHiuKin/Chat_Client/feature/docker/docker-compose.yml) về máy và chạy lệnh sau trong Terminal:
-```bash
-docker compose up -d
-```
-> 💡 **Hệ thống sẽ tự động:**
-> 1. Kéo image `tuongkien/chat-server:latest` từ Docker Hub.
-> 2. Kéo image CSDL Microsoft SQL Server 2022.
-> 3. Tự tạo CSDL `ChatDB`, toàn bộ bảng và mở cổng `5000`.
-> 4. Bây giờ bạn chỉ cần mở file `ChatClient.exe` lên là chat được ngay!
+* 📥 [👉 **Bấm vào đây để tải `ChatClient.exe` (GitHub Releases)**](https://github.com/TuongHiuKin/Chat_Client/releases/latest/download/ChatClient.exe)
+* 📦 Hoặc xem danh sách các phiên bản tại: [GitHub Releases Page](https://github.com/TuongHiuKin/Chat_Client/releases)
 
 ---
 
-## 📑 Mục lục
-- [1. Hướng dẫn sử dụng cho người dùng](#1-hướng-dẫn-sử-dụng-cho-người-dùng)
-- [2. Hướng dẫn dành cho Lập trình viên (Build & Push Docker Hub)](#2-hướng-dẫn-dành-cho-lập-trình-viên-build--push-docker-hub)
-- [3. Hướng dẫn chạy thủ công (Không dùng Docker)](#3-hướng-dẫn-chạy-thủ-công-không-dùng-docker)
-- [4. Kiến trúc hệ thống](#4-kiến-trúc-hệ-thống)
-- [5. Cấu trúc thư mục mã nguồn](#5-cấu-trúc-thư-mục-mã-nguồn)
-- [6. Các tính năng nổi bật](#6-các-tính-năng-nổi-bật)
+## 🐳 2. Tải & Chạy Server từ Docker Hub
+
+Tùy theo nhu cầu sử dụng, dự án cung cấp **2 loại Docker Image riêng biệt** được lưu trữ tại [Docker Hub Repository: `tuongkien/chat-server`](https://hub.docker.com/repository/docker/tuongkien/chat-server):
+
+### ⭐ Lựa chọn 1: Image Có Sẵn CSDL (All-in-One - Khuyên dùng)
+> **Mô tả:** Tích hợp sẵn cả **ChatServer (.NET 10)** và **Microsoft SQL Server 2022** trong cùng 1 container duy nhất. Không cần cài đặt CSDL hay bất cứ file nào khác trên máy.
+
+* **Lệnh kéo image về máy:**
+  ```bash
+  docker pull tuongkien/chat-server:all-in-one
+  ```
+
+* **Lệnh chạy ngay lập tức (Chỉ đúng 1 câu lệnh):**
+  ```bash
+  docker run -d -p 5000:5000 --name chat_all_in_one tuongkien/chat-server:all-in-one
+  ```
+  *(Container tự động khởi chạy SQL Server, tự kết nối và tạo cơ sở dữ liệu `ChatDB` cùng toàn bộ bảng, sau đó mở cổng `5000` sẵn sàng cho Client kết nối!)*
 
 ---
 
-## 1. Hướng dẫn sử dụng cho người dùng
+### 🚀 Lựa chọn 2: Image Không Có DB (Standalone - Nhẹ ~112 MB)
+> **Mô tả:** Chỉ chứa ứng dụng **ChatServer**, dành cho ai muốn kết nối trực tiếp đến **SQL Server đã cài sẵn trên máy tính** hoặc chạy qua **Docker Compose**.
 
-### Bước 1: Khởi chạy Backend (Server & DB)
-Mở Terminal tại thư mục chứa `docker-compose.yml` và chạy:
-```bash
-docker compose up -d
-```
-Kiểm tra server đã sẵn sàng chưa:
-```bash
-docker compose logs -f chatserver
-```
-*(Khi thấy dòng `╔═ CHAT SERVER STARTED ═╗` và `Waiting for clients...` là đã sẵn sàng)*.
+* **Lệnh kéo image về máy:**
+  ```bash
+  docker pull tuongkien/chat-server:no-db
+  ```
 
-### Bước 2: Mở ứng dụng ChatClient
-1. Tải file [**`ChatClient.exe`**](https://github.com/TuongHiuKin/Chat_Client/releases/latest/download/ChatClient.exe) về máy.
-2. Nhấp đúp mở **2 cửa sổ `ChatClient.exe`** để thử nghiệm chat giữa 2 tài khoản:
-   * **Host:** `127.0.0.1` (hoặc IP mạng LAN của máy chủ nếu chạy khác máy).
-   * **Port:** `5000`.
-3. Đăng ký tài khoản:
-   * Cửa sổ 1: Đăng ký tài khoản `alice` (Mật khẩu: `123456`, Tên hiển thị: `Alice`).
-   * Cửa sổ 2: Đăng ký tài khoản `bob` (Mật khẩu: `123456`, Tên hiển thị: `Bob`).
-4. Bắt đầu chat:
-   * Tại cửa sổ Alice, nhấn nút **+** $\rightarrow$ Chọn **Bob** $\rightarrow$ Nhấn **Tạo hội thoại**.
-   * Nhắn tin văn bản, chọn Emoji, gửi ảnh hoặc tài liệu đính kèm theo thời gian thực!
+* **Cách A - Kết nối với SQL Server đang chạy trên máy tính (Host):**
+  ```bash
+  docker run -d -p 5000:5000 --name chat_server -e "ConnectionStrings__DefaultConnection=Server=host.docker.internal,1433;Database=ChatDB;User Id=sa;Password=12345;TrustServerCertificate=True" tuongkien/chat-server:no-db
+  ```
+  *(💡 **Lưu ý:** Server sẽ tự động kết nối vào SQL Server trên máy tính của bạn và tự động khởi tạo database `ChatDB` cùng toàn bộ cấu trúc bảng nếu chưa tồn tại).*
 
-### Bước 3: Tắt hệ thống khi dùng xong
-```bash
-docker compose down
-```
-*(Dữ liệu tin nhắn và tài khoản vẫn được bảo toàn trong Docker Volume `mssql_data`).*
+* **Cách B - Chạy kết hợp với SQL Server container qua `docker compose`:**
+  ```bash
+  docker compose up -d
+  ```
 
 ---
 
-## 2. Hướng dẫn dành cho Lập trình viên (Build & Push Docker Hub)
+## 🏗️ 3. Kiến Trúc & Tính Năng Nổi Bật
 
-Nếu bạn sửa đổi mã nguồn của Server và muốn cập nhật image mới lên Docker Hub:
-
-### 1. Đăng nhập Docker Hub
-```bash
-docker login
-```
-*(Nhập Username: `tuongkien` và Password/Personal Access Token)*.
-
-### 2. Build và Push Image lên Docker Hub
-Tại thư mục `ChatSystem/`, chạy:
-```bash
-# Build image với tag tuongkien/chat-server:latest
-docker compose build
-
-# Đẩy image lên Docker Hub
-docker compose push
-```
-Hoặc dùng lệnh `docker build / push` truyền thống:
-```bash
-docker build -t tuongkien/chat-server:latest -f ChatServer/Dockerfile .
-docker push tuongkien/chat-server:latest
-```
-
-### 3. Đính kèm file `ChatClient.exe` lên GitHub Releases
-Vì file `ChatClient.exe` có dung lượng ~139 MB (vượt quá giới hạn 100 MB của Git thông thường), cách chuyên nghiệp nhất là đính kèm vào **GitHub Releases**:
-1. Truy cập [GitHub Repository Releases](https://github.com/TuongHiuKin/Chat_Client/releases).
-2. Nhấn **Draft a new release** (Tạo release mới).
-3. Đặt Tag: `v1.0.0`, Tiêu đề: `ChatClient Release v1.0.0`.
-4. Kéo thả file `ChatClient.exe` vào khung đính kèm file (Attach binaries by dropping them here).
-5. Nhấn **Publish release** $\rightarrow$ Link tải [ChatClient.exe](https://github.com/TuongHiuKin/Chat_Client/releases/latest/download/ChatClient.exe) ở đầu trang sẽ hoạt động ngay lập tức!
-
----
-
-## 3. Hướng dẫn chạy thủ công (Không dùng Docker)
-
-Dành cho môi trường phát triển cục bộ bằng Visual Studio hoặc .NET CLI:
-
-1. **Cấu hình SQL Server:**
-   * Copy `ChatServer/appsettings.example.json` thành `ChatServer/appsettings.json`.
-   * Cập nhật thông tin tài khoản SQL Server của bạn.
-2. **Chạy Server:**
-   ```bash
-   cd ChatServer
-   dotnet run
-   ```
-   *Server sẽ tự động kết nối và khởi tạo database `ChatDB` nếu chưa có.*
-3. **Chạy Client:**
-   ```bash
-   cd ChatClient
-   dotnet run
-   ```
-
----
-
-## 4. Kiến trúc hệ thống
-
+### Sơ đồ luồng dữ liệu:
 ```text
-+-------------------------------------------------------------+
-|                     ChatClient (WPF App)                    |
-|             (Chạy trực tiếp trên máy người dùng)            |
-+-------------------------------------------------------------+
-                              ▲
-                              │  TCP Socket / JSON (\n framed)
-                              │  Port 5000
-                              ▼
-+-------------------------------------------------------------+
-|               ChatServer (Docker Container)                 |
-|             Image: tuongkien/chat-server:latest           |
-|           - TcpListener lắng nghe kết nối đa luồng           |
-|           - Broadcast tin nhắn theo thời gian thực          |
-|           - Tự động đồng bộ schema CSDL với EF Core         |
-+-------------------------------------------------------------+
-                              ▲
-                              │  TDS Protocol
-                              │  Port 1433
-                              ▼
-+-------------------------------------------------------------+
-|             Microsoft SQL Server 2022 (Docker)              |
-|          Image: mcr.microsoft.com/mssql/server:2022         |
-|          (Bảng: Users, Conversations, Messages, ...)        |
-+-------------------------------------------------------------+
+[ ChatClient (WPF App) ]
+           ▲
+           │ TCP Socket (Port 5000, JSON \n framed)
+           ▼
+[ ChatServer (.NET 10) ]
+           ▲
+           │ TDS Protocol (Port 1433)
+           ▼
+[ Microsoft SQL Server 2022 (ChatDB) ]
 ```
 
----
-
-## 5. Cấu trúc thư mục mã nguồn
-
-```text
-ChatSystem/
-├── ChatServer/                     # Ứng dụng máy chủ (Console App, .NET 10)
-│   ├── Configuration/              # ServerSettings
-│   ├── Data/                       # ChatDbContext (Entity Framework Core)
-│   ├── Models/                     # User, Conversation, Message, Attachment
-│   ├── Networking/                 # Server, ClientConnection, ClientHandler (TCP Socket)
-│   ├── Protocol/                   # NetworkMessage & MessageType
-│   ├── Services/                   # AuthenticationService, MessageService, FileService
-│   ├── Dockerfile                  # Cấu hình build container Linux .NET 10
-│   └── appsettings.example.json    # File cấu hình mẫu
-├── ChatClient/                     # Ứng dụng người dùng (WPF Desktop App, .NET 10)
-│   ├── Assets/Emojis/              # Bộ icon cảm xúc dạng ảnh PNG
-│   ├── Models/                     # ChatMessage model
-│   ├── Services/                   # ChatClientService & EmojiHelper
-│   ├── MainWindow.xaml (.cs)       # Giao diện chính (Dark Mode, Chat Room, Emoji Picker)
-│   └── NewConversationDialog.cs    # Hộp thoại tạo cuộc trò chuyện mới
-├── docker-compose.yml              # Thiết lập chạy nhanh ChatServer & SQL Server
-├── .gitignore                      # Chặn rác build, cache IDE & appsettings.json
-└── README.md                       # Tài liệu hướng dẫn
-```
-
----
-
-## 6. Các tính năng nổi bật
-
-* 🔐 **Bảo mật xác thực:** Mật khẩu được mã hóa an toàn bằng thuật toán **SHA-256 kèm Salt ngẫu nhiên 16 bytes**, so sánh an toàn chống tấn công timing (`CryptographicOperations.FixedTimeEquals`).
-* ⚡ **Giao tiếp Real-time hiệu năng cao:** Sử dụng Raw TCP Socket với cơ chế Framing dòng (`\n`), truyền nhận dữ liệu bất đồng bộ (`async/await`, `Dispatcher.Invoke`).
-* 🎨 **Giao diện hiện đại (WPF Dark Mode):** Thiết kế bảng màu tối (`#0F0F13`) kết hợp sắc tím gradient hiện đại.
-* 😀 **Biểu tượng cảm xúc phong phú:** Tích hợp bảng chọn Emoji theo danh mục (mặt cười, đồ ăn, hoạt động, biểu tượng).
-* 🖼️ **Gửi hình ảnh & tập tin:** Hỗ trợ gửi ảnh xem trực tiếp trong bong bóng chat và gửi file đính kèm (giới hạn 10 MB/file).
-* 🟢 **Theo dõi trạng thái Online/Offline:** Tự động cập nhật danh sách người dùng đang trực tuyến ngay lập tức khi có người đăng nhập hoặc ngắt kết nối.
-* 📜 **Lịch sử tin nhắn:** Tự động lưu trữ vĩnh viễn trong SQL Server và phân trang tải lại lịch sử hội thoại.
+### Các tính năng chính:
+* 🔐 **Bảo mật xác thực:** Mật khẩu được băm an toàn bằng thuật toán **SHA-256 kèm Salt ngẫu nhiên 16 bytes**, so sánh an toàn chống timing attack.
+* ⚡ **Giao tiếp Real-time đa luồng:** Xử lý kết nối TCP bất đồng bộ bằng `TcpListener`, `ConcurrentDictionary` và hàng đợi tin nhắn thread-safe.
+* 🎨 **Giao diện hiện đại:** WPF Dark Mode tông màu tím gradient (`#7C6EFF`), danh sách người dùng online cập nhật tức thì.
+* 😀 **Biểu tượng cảm xúc phong phú:** Tích hợp bảng chọn Emoji phân loại theo chủ đề.
+* 🖼️ **Truyền nhận tệp tin & hình ảnh:** Xem trực tiếp ảnh trong tin nhắn và tải tài liệu đính kèm (giới hạn tối đa 10 MB/tệp).
+* 📜 **Lưu trữ & Lịch sử:** Toàn bộ tin nhắn được lưu vĩnh viễn trong CSDL và tự động phân trang khi tải lại.
