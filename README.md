@@ -43,9 +43,9 @@ Tùy theo nhu cầu sử dụng, dự án cung cấp **2 loại Docker Image ri�
 
 * **Cách A - Kết nối với SQL Server đang chạy trên máy tính (Host):**
   ```bash
-  docker run -d -p 5000:5000 --name chat_server -e "ConnectionStrings__DefaultConnection=Server=host.docker.internal,1433;Database=ChatDB;User Id=sa;Password=12345;TrustServerCertificate=True" tuongkien/chat-server:no-db
+  docker run -d -p 5000:5000 --name chat_server -e "ConnectionStrings__DefaultConnection=Server=host.docker.internal,1433;Database=ChatDB;User Id=sa;Password=MẬT_KHẨU_SQL_CỦA_BẠN;TrustServerCertificate=True" tuongkien/chat-server:no-db
   ```
-  *(💡 **Lưu ý:** Server sẽ tự động kết nối vào SQL Server trên máy tính của bạn và tự động khởi tạo database `ChatDB` cùng toàn bộ cấu trúc bảng nếu chưa tồn tại).*
+  *(💡 **Lưu ý:** Hãy thay `MẬT_KHẨU_SQL_CỦA_BẠN` bằng mật khẩu tài khoản `sa` của SQL Server trên máy bạn. Server sẽ tự động kết nối và khởi tạo database `ChatDB` cùng toàn bộ cấu trúc bảng nếu chưa tồn tại).*
 
 * **Cách B - Chạy kết hợp với SQL Server container qua `docker compose`:**
   ```bash
