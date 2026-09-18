@@ -67,7 +67,8 @@ jobs:
           load: true
           tags: chat-server:test
           cache-from: type=gha,scope=${{ matrix.target }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.target }}
+          # Merged pull_request/closed runs have read-only GHA cache access.
+          # Restore existing cache only; never export it from this event.
       - name: Test SQL startup, group chat and attachment round-trip
         env:
           IMAGE_TARGET: ${{ matrix.target }}

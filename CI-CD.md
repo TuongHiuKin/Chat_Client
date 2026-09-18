@@ -44,7 +44,7 @@ Test chạy sau merge theo quy trình này. Nếu test thất bại, code đã �
 1. Windows runner build .NET 10 server, WPF client và test harness; chạy test nhanh với SQL LocalDB và kiểm tra render emoji/WPF.
 2. Hai Linux job build song song hai target Docker: `no-db` và `all-in-one`.
 3. Mỗi image được khởi động thật, kết nối SQL, kiểm tra nhóm 3 người và upload/download file 1 MiB qua TCP, đối chiếu SHA-256.
-4. Chỉ sau khi tất cả job kiểm thử thành công, đăng nhập Docker Hub và push hai image. Build cache giúp bước publish không phải compile lại toàn bộ.
+4. Chỉ sau khi tất cả job kiểm thử thành công, đăng nhập Docker Hub và push hai image. Các job có thể đọc cache đã tồn tại. Sự kiện PR đã merge chỉ có quyền đọc GitHub Actions cache, nên workflow không ghi `cache-to: type=gha`; khi không có cache phù hợp, Docker build lại bình thường.
 5. Actions Summary ghi digest và lệnh pull image mới. Workflow sử dụng action cố định theo commit SHA để giữ phiên bản công cụ ổn định; đây không phải tag Docker image.
 
 Kiểm thử CI dùng file nhỏ để chạy nhanh. Bộ test đầy đủ 500 MiB vẫn chạy được bằng `dotnet run --project Lab2.Tests` trên Windows có SQL Server.
