@@ -31,6 +31,7 @@ namespace ChatServer.Networking
 
         // ── Trạng thái ────────────────────────────────────────────
         private TcpListener? _listener;
+        private readonly ConcurrentDictionary<string, Task> _handlers = new();
 
         /// <summary>
         /// Danh sách các kết nối Client đang hoạt động.
@@ -100,7 +101,13 @@ namespace ChatServer.Networking
                         ct);
 
                     // Chạy handler độc lập trong Task riêng, không await
-                    _ = Task.Run(() => handler.HandleAsync(), ct);
+                    var handlerTask = Task.Run(async () =>
+                    {
+                        try { await handler.HandleAsync(); }
+                        finally { await db.DisposeAsync(); }
+                    });
+                    _handlers[connection.ConnectionId] = handlerTask;
+                    _ = handlerTask.ContinueWith(completed => { _handlers.TryRemove(connection.ConnectionId, out _); }, TaskScheduler.Default);
                 }
             }
             catch (OperationCanceledException)
@@ -110,6 +117,8 @@ namespace ChatServer.Networking
             finally
             {
                 _listener.Stop();
+                foreach (var connection in _connections.Values) connection.Dispose();
+                await Task.WhenAll(_handlers.Values);
                 Console.WriteLine("Server stopped.");
             }
         }

@@ -12,4 +12,7 @@
     <Content Include="Assets\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="../Shared/JsonLineReader.cs" Link="Protocol/JsonLineReader.cs" />
+  </ItemGroup>
 </Project>

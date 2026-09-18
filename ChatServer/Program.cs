@@ -29,7 +29,8 @@ var configuration = new ConfigurationBuilder()
     .Build();
 
 var connectionString =
-    configuration.GetConnectionString("DefaultConnection")
+    Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+    ?? configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException(
         "ConnectionString 'DefaultConnection' is missing in appsettings.json.");
 
@@ -94,6 +95,8 @@ Console.CancelKeyPress += (_, e) =>
     cts.Cancel();
 };
 
+serverSettings.Host = Environment.GetEnvironmentVariable("ServerSettings__Host") ?? serverSettings.Host;
+if (int.TryParse(Environment.GetEnvironmentVariable("ServerSettings__Port"), out int configuredPort)) serverSettings.Port = configuredPort;
 var server = new ChatServerHost(
     serverSettings.Host,
     serverSettings.Port,

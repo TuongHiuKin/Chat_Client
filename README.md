@@ -1,3 +1,5 @@
+> **Lab2:** Xem [LAB2.md](LAB2.md) để chạy mã mới, demo chat nhóm và truyền file 500 MB. Các link EXE/Docker release bên dưới là bản đã phát hành trước đó.
+
 # 💬 ChatSystem - Hệ Thống Chat Real-Time (.NET 10 & TCP Socket)
 
 > **Đồ án môn học PRN222** - Ứng dụng chat đa người dùng kiến trúc Client - Server sử dụng Raw TCP Socket, định dạng gói tin JSON tùy biến, Entity Framework Core và giao diện WPF hiện đại.
@@ -74,5 +76,5 @@ Tùy theo nhu cầu sử dụng, dự án cung cấp **2 loại Docker Image ri�
 * ⚡ **Giao tiếp Real-time đa luồng:** Xử lý kết nối TCP bất đồng bộ bằng `TcpListener`, `ConcurrentDictionary` và hàng đợi tin nhắn thread-safe.
 * 🎨 **Giao diện hiện đại:** WPF Dark Mode tông màu tím gradient (`#7C6EFF`), danh sách người dùng online cập nhật tức thì.
 * 😀 **Biểu tượng cảm xúc phong phú:** Tích hợp bảng chọn Emoji phân loại theo chủ đề.
-* 🖼️ **Truyền nhận tệp tin & hình ảnh:** Xem trực tiếp ảnh trong tin nhắn và tải tài liệu đính kèm (giới hạn tối đa 10 MB/tệp).
+* 🖼️ **Truyền nhận tệp tin & hình ảnh:** Xem trực tiếp ảnh trong tin nhắn và tải tài liệu đính kèm (giới hạn tối đa 500 MB/tệp).
 * 📜 **Lưu trữ & Lịch sử:** Toàn bộ tin nhắn được lưu vĩnh viễn trong CSDL và tự động phân trang khi tải lại.

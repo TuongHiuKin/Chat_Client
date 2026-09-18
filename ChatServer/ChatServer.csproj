@@ -27,4 +27,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Shared/JsonLineReader.cs" Link="Protocol/JsonLineReader.cs" />
+  </ItemGroup>
 </Project>

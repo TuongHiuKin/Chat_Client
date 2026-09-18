@@ -25,3 +25,7 @@ out/
 *.log
 *.tmp
 *.crash
+
+# Lab2 file storage and integration artifacts
+uploads/
+.lab2-tests/

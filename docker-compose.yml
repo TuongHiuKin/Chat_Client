@@ -34,6 +34,10 @@ services:
       - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=ChatDB;User Id=sa;Password=Password@12345;TrustServerCertificate=True
       - ServerSettings__Host=0.0.0.0
       - ServerSettings__Port=5000
+      - CHAT_STORAGE_PATH=/app/uploads
+    volumes:
+      - chat_uploads:/app/uploads
 
 volumes:
   mssql_data:
+  chat_uploads:

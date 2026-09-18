@@ -389,7 +389,7 @@
                 <DataTrigger Binding="{Binding IsImageMessage}" Value="True">
                     <Setter TargetName="TxtMsgContent" Property="Visibility" Value="Collapsed"/>
                     <Setter TargetName="ImgContainer" Property="Visibility" Value="Visible"/>
-                    <Setter TargetName="FileCard" Property="Visibility" Value="Collapsed"/>
+                    <Setter TargetName="FileCard" Property="Visibility" Value="Visible"/>
                 </DataTrigger>
                 <!-- Nếu là file -->
                 <DataTrigger Binding="{Binding IsFileMessage}" Value="True">

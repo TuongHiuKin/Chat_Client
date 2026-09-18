@@ -8,7 +8,7 @@ namespace ChatClient.Models
     /// Đại diện một tin nhắn hiển thị trong danh sách hội thoại ở giao diện Client.
     /// Hỗ trợ tin nhắn văn bản, tin nhắn hệ thống, hình ảnh và tập tin đính kèm.
     /// </summary>
-    public class ChatMessage
+    public class ChatMessage : System.ComponentModel.INotifyPropertyChanged
     {
         /// <summary>ID của tin nhắn (đồng bộ với MessageId bên Server/DB).</summary>
         public long? MessageId { get; set; }
@@ -48,7 +48,14 @@ namespace ChatClient.Models
         public byte[]? RawFileData { get; set; }
 
         /// <summary>Hình ảnh hiển thị trực tiếp trong bubble chat.</summary>
-        public BitmapSource? ImageSource { get; set; }
+        public long? AttachmentId { get; set; }
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+        private BitmapSource? _imageSource;
+        public BitmapSource? ImageSource
+        {
+            get => _imageSource;
+            set { _imageSource = value; PropertyChanged?.Invoke(this, new(nameof(ImageSource))); }
+        }
 
         /// <summary>Định dạng dung lượng file dễ đọc (ví dụ: 250 KB, 1.4 MB).</summary>
         public string FileSizeFormatted
@@ -82,6 +89,7 @@ namespace ChatClient.Models
                 var bitmap = new BitmapImage();
                 bitmap.BeginInit();
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.DecodePixelWidth = 640;
                 bitmap.StreamSource = ms;
                 bitmap.EndInit();
                 bitmap.Freeze(); // Cần freeze để an toàn đa luồng trong WPF

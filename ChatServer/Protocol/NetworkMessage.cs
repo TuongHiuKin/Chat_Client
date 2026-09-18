@@ -13,6 +13,8 @@ namespace ChatServer.Protocol
     {
         // ── Phần định danh gói tin ───────────────────────────────
         /// <summary>Loại gói tin, xác định hành động cần thực hiện.</summary>
+        [JsonPropertyName("requestId")]
+        public string? RequestId { get; set; }
         [JsonPropertyName("type")]
         public MessageType Type { get; set; }
 
