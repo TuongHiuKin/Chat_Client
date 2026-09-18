@@ -9,18 +9,35 @@ Repository image hiện tại: **tuongkien/chat-server**.
 1. Trong Docker Hub, tạo Personal Access Token có quyền **Read & Write** cho tài khoản `tuongkien`.
 2. Mở [GitHub → Settings → Secrets and variables → Actions](https://github.com/TuongHiuKin/Chat_Client/settings/secrets/actions).
 3. Tạo repository secret tên chính xác **`DOCKERHUB_TOKEN`**, dán token vào ô secret. Không commit token, không đặt token vào YAML.
-4. Mở [Actions](https://github.com/TuongHiuKin/Chat_Client/actions/workflows/docker-hub.yml), chọn lượt chạy mới nhất rồi **Re-run failed jobs**. Nếu lượt chạy đang kiểm thử, thêm secret trước khi job Publish bắt đầu.
+4. Merge PR vào `main` để bắt đầu pipeline. Nếu một lượt chạy sau merge bị lỗi do thiếu token, thêm secret rồi mở [Actions](https://github.com/TuongHiuKin/Chat_Client/actions/workflows/docker-hub.yml), chọn lượt chạy đó và **Re-run failed jobs**.
 
 Không cần secret username: workflow dùng `tuongkien` và image `tuongkien/chat-server` như project hiện tại. Khi thiếu token, bước Publish báo lỗi rõ ràng và không cập nhật Docker Hub.
 
 ## Khi nào workflow chạy?
 
-- Push lên `main` hoặc `feature/docker`: build, test và cập nhật image Docker Hub.
-- Pull request vào các nhánh trên: chỉ build/test, không đăng nhập hoặc push Docker Hub.
-- Push tag `v2.0.0`, `v2.1.0`, ...: lưu image với tag phiên bản, không ghi đè các tag chạy mặc định.
-- Có `workflow_dispatch` để chạy thủ công. Nút **Run workflow** hiển thị sau khi workflow được merge vào nhánh mặc định `main`; push vào `feature/docker` vẫn kích hoạt ngay trước khi merge.
+Pipeline chỉ thực hiện build/test/publish **sau khi PR được merge vào `main`**:
 
-Hai nhánh `main` và `feature/docker` đều được phép cập nhật tag chạy mặc định; nội dung tag là bản thuộc lượt publish thành công gần nhất. Khi chỉ muốn phát hành từ main, xóa `feature/docker` khỏi `push.branches` và điều kiện của job `publish`.
+```text
+Push code lên nhánh làm việc
+            ↓
+Tạo PR vào main → Review → Merge PR
+                              ↓
+             Build và kiểm thử mã đã merge
+                              ↓
+                 Tất cả kiểm thử thành công
+                              ↓
+           Cập nhật image trên Docker Hub
+```
+
+Workflow dùng sự kiện `pull_request` với `types: [closed]`, lọc nhánh đích `main`, và điều kiện `github.event.pull_request.merged == true`. Mỗi job checkout `merge_commit_sha` để kiểm thử và publish đúng mã đã merge.
+
+- Push nhánh, mở/cập nhật PR: chưa chạy workflow.
+- Đóng PR mà không merge: các job bị bỏ qua, không publish.
+- Merge PR vào `main`: chạy build/test, rồi publish khi thành công.
+- Push trực tiếp vào `main`, push git tag: không kích hoạt workflow.
+- Không có nút chạy mới thủ công (`workflow_dispatch`); có thể chạy lại một lượt sau merge bị lỗi bằng **Re-run failed jobs**.
+
+Test chạy sau merge theo quy trình này. Nếu test thất bại, code đã ở `main` nhưng image Docker Hub chưa được cập nhật; sửa lỗi bằng PR tiếp theo hoặc chạy lại nếu là lỗi tạm thời.
 
 ## Các bước CI/CD
 
@@ -28,7 +45,7 @@ Hai nhánh `main` và `feature/docker` đều được phép cập nhật tag ch
 2. Hai Linux job build song song hai target Docker: `no-db` và `all-in-one`.
 3. Mỗi image được khởi động thật, kết nối SQL, kiểm tra nhóm 3 người và upload/download file 1 MiB qua TCP, đối chiếu SHA-256.
 4. Chỉ sau khi tất cả job kiểm thử thành công, đăng nhập Docker Hub và push hai image. Build cache giúp bước publish không phải compile lại toàn bộ.
-5. Actions Summary ghi digest và lệnh pull đúng phiên bản. Workflow sử dụng action cố định theo commit SHA.
+5. Actions Summary ghi digest và lệnh pull image mới. Workflow sử dụng action cố định theo commit SHA để giữ phiên bản công cụ ổn định; đây không phải tag Docker image.
 
 Kiểm thử CI dùng file nhỏ để chạy nhanh. Bộ test đầy đủ 500 MiB vẫn chạy được bằng `dotnet run --project Lab2.Tests` trên Windows có SQL Server.
 
@@ -39,11 +56,10 @@ Kiểm thử CI dùng file nhỏ để chạy nhanh. Bộ test đầy đủ 500 
 | `no-db` | Server Lab2, kết nối SQL Server bên ngoài |
 | `latest` | Cùng bản với `no-db` |
 | `all-in-one` | Server Lab2 kèm SQL Server 2022 |
-| `no-db-sha-<full-commit-sha>` | Bản server không DB của một commit cụ thể |
-| `all-in-one-sha-<full-commit-sha>` | Bản kèm DB của một commit cụ thể |
-| `no-db-v2.0.0`, `all-in-one-v2.0.0` | Bản được phát hành từ git tag `v2.0.0` |
 
-Tag theo commit/phiên bản giúp pull lại bản cũ khi cần; workflow không xóa các image trước đó. Docker Hub vẫn có thể cho phép ghi đè tag; digest trong Actions Summary là định danh chính xác của image đã publish.
+Mỗi lần publish thành công sẽ cập nhật ba tag cố định ở trên. Không tạo thêm tag theo commit hoặc git tag phiên bản. Digest trong Actions Summary vẫn xác định chính xác nội dung image của lượt publish đó.
+
+Các tag theo commit đã publish trước khi đổi quy trình vẫn nằm trên Docker Hub; workflow mới không tạo thêm hoặc tự xóa chúng.
 
 ## Cập nhật máy chạy Docker
 
@@ -88,4 +104,4 @@ python scripts/docker_smoke.py --image chat-server:test --target all-in-one
 
 Docker build loại bỏ `appsettings.json` cục bộ, `.env`, thư mục uploads và output build. Image chỉ nhận cấu hình example không chứa secret; khi chạy, các biến môi trường ghi đè connection string và host/port.
 
-Tham khảo chính thức: [Docker — test before push với GitHub Actions](https://docs.docker.com/build/ci/github-actions/test-before-push/).
+Tham khảo chính thức: [Docker — test before push với GitHub Actions](https://docs.docker.com/build/ci/github-actions/test-before-push/), [GitHub — chạy workflow khi PR được merge](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#running-your-pull_request-workflow-when-a-pull-request-merges).

@@ -148,11 +148,13 @@ docker compose up -d --no-build chatserver
 
 Lệnh trên cập nhật container ứng dụng, giữ dữ liệu trong các volume. Không dùng `docker compose down -v` nếu muốn giữ database và tập tin.
 
-Với container tạo bằng `docker run`, `docker pull` chỉ tải image mới; cần tạo lại container ứng dụng với cùng cấu hình và volume để sử dụng image đó. Hướng dẫn và các tag phiên bản nằm trong [CI-CD.md](CI-CD.md).
+Với container tạo bằng `docker run`, `docker pull` chỉ tải image mới; cần tạo lại container ứng dụng với cùng cấu hình và volume để sử dụng image đó. Hướng dẫn cập nhật nằm trong [CI-CD.md](CI-CD.md).
 
 ## Docker Hub và CI/CD
 
 Workflow [docker-hub.yml](.github/workflows/docker-hub.yml) thực hiện:
+
+Workflow bắt đầu **sau khi một PR được merge vào `main`**. Các bước đều dùng đúng mã nguồn của commit vừa merge:
 
 1. Build server, WPF client và test harness trên Windows; chạy test SQL/TCP và render giao diện.
 2. Build hai Docker target trên Linux, khởi động container thật, kiểm tra nhóm ba người và truyền file có SHA-256.
@@ -163,10 +165,10 @@ Workflow [docker-hub.yml](.github/workflows/docker-hub.yml) thực hiện:
 | `no-db` | ChatServer, dùng SQL Server bên ngoài |
 | `latest` | Cùng bản với `no-db` |
 | `all-in-one` | ChatServer kèm SQL Server 2022 |
-| `no-db-sha-<commit>`, `all-in-one-sha-<commit>` | Image theo đầy đủ commit SHA |
-| `no-db-v2.0.0`, `all-in-one-v2.0.0` | Ví dụ tag phiên bản khi push git tag `v2.0.0` |
 
-Push lên `main` hoặc `feature/docker` sẽ build/test và cập nhật các tag chạy mặc định. Pull request chỉ build/test. Git tag `v*` tạo tag phiên bản riêng. Pipeline xuất bản image; máy đang chạy server cần thực hiện lệnh cập nhật container ở trên.
+Luồng sử dụng: **push nhánh làm việc → tạo PR vào `main` → review và merge → build/test → push Docker Hub**. Push nhánh, mở/cập nhật PR, đóng PR không merge và push git tag không chạy build/test/publish. Push trực tiếp vào `main` cũng không kích hoạt workflow này.
+
+Mỗi lần thành công, pipeline cập nhật ba tag `no-db`, `all-in-one`, `latest`; không tạo thêm tag theo commit hoặc phiên bản. Nếu test thất bại, bước publish không chạy và các image đang có trên Docker Hub được giữ nguyên. Máy đang chạy server cần thực hiện lệnh cập nhật container ở trên.
 
 Secret Docker Hub đã được cấu hình cho repository này. Khi fork sang repository khác, thiết lập token và tài khoản theo [hướng dẫn CI/CD](CI-CD.md).
 
