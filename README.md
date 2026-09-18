@@ -4,7 +4,7 @@
 
 Lab2 bổ sung emoji màu, gửi ảnh có xem trước, truyền file tới **500 MB** và cho phép nhiều người tham gia cùng một nhóm. Docker image Lab2 đã được build, kiểm thử và publish lên Docker Hub qua GitHub Actions.
 
-[Docker Hub](https://hub.docker.com/r/tuongkien/chat-server/tags) · [GitHub Actions](https://github.com/TuongHiuKin/Chat_Client/actions/workflows/docker-hub.yml) · [Chi tiết Lab2](LAB2.md) · [Hướng dẫn CI/CD](CI-CD.md)
+[Chức năng Lab1](docs/labs/LAB1.md) · [Chức năng Lab2](docs/labs/LAB2.md) · [Docker Hub](https://hub.docker.com/r/tuongkien/chat-server/tags)
 
 ## Tính năng
 
@@ -148,29 +148,7 @@ docker compose up -d --no-build chatserver
 
 Lệnh trên cập nhật container ứng dụng, giữ dữ liệu trong các volume. Không dùng `docker compose down -v` nếu muốn giữ database và tập tin.
 
-Với container tạo bằng `docker run`, `docker pull` chỉ tải image mới; cần tạo lại container ứng dụng với cùng cấu hình và volume để sử dụng image đó. Hướng dẫn cập nhật nằm trong [CI-CD.md](CI-CD.md).
-
-## Docker Hub và CI/CD
-
-Workflow [docker-hub.yml](.github/workflows/docker-hub.yml) thực hiện:
-
-Workflow bắt đầu **sau khi một PR được merge vào `main`**. Các bước đều dùng đúng mã nguồn của commit vừa merge:
-
-1. Build server, WPF client và test harness trên Windows; chạy test SQL/TCP và render giao diện.
-2. Build hai Docker target trên Linux, khởi động container thật, kiểm tra nhóm ba người và truyền file có SHA-256.
-3. Khi tất cả kiểm thử đạt, đăng nhập bằng secret `DOCKERHUB_TOKEN` và publish lên `tuongkien/chat-server`.
-
-| Docker tag | Nội dung |
-| --- | --- |
-| `no-db` | ChatServer, dùng SQL Server bên ngoài |
-| `latest` | Cùng bản với `no-db` |
-| `all-in-one` | ChatServer kèm SQL Server 2022 |
-
-Luồng sử dụng: **push nhánh làm việc → tạo PR vào `main` → review và merge → build/test → push Docker Hub**. Push nhánh, mở/cập nhật PR, đóng PR không merge và push git tag không chạy build/test/publish. Push trực tiếp vào `main` cũng không kích hoạt workflow này.
-
-Mỗi lần thành công, pipeline cập nhật ba tag `no-db`, `all-in-one`, `latest`; không tạo thêm tag theo commit hoặc phiên bản. Nếu test thất bại, bước publish không chạy và các image đang có trên Docker Hub được giữ nguyên. Máy đang chạy server cần thực hiện lệnh cập nhật container ở trên.
-
-Secret Docker Hub đã được cấu hình cho repository này. Khi fork sang repository khác, thiết lập token và tài khoản theo [hướng dẫn CI/CD](CI-CD.md).
+Với container tạo bằng `docker run`, `docker pull` chỉ tải image mới; cần tạo lại container ứng dụng với cùng cấu hình và volume để sử dụng image đó.
 
 ## Kiến trúc và xử lý bất đồng bộ
 
@@ -185,7 +163,7 @@ ChatServer (.NET 10)
 
 Mỗi kết nối có task và `DbContext` riêng; broadcast dùng `Task.WhenAll`. File được đọc/ghi bất đồng bộ theo khối **64 KiB**, có ACK và `RequestId`; `SemaphoreSlim` ngăn các tác vụ ghi trộn dữ liệu lên TCP. Thumbnail được tạo ngoài luồng UI và tải tối đa ba lượt đồng thời.
 
-Lịch sử/broadcast chứa metadata; người nhận chỉ tải file gốc khi yêu cầu. Khi sao lưu, cần giữ **cả SQL database và thư mục/volume uploads**. Chi tiết triển khai và giới hạn nằm trong [LAB2.md](LAB2.md).
+Lịch sử/broadcast chứa metadata; người nhận chỉ tải file gốc khi yêu cầu. Khi sao lưu, cần giữ **cả SQL database và thư mục/volume uploads**. Tóm tắt chức năng và giới hạn nằm trong [Lab2](docs/labs/LAB2.md).
 
 ## Kiểm thử
 
