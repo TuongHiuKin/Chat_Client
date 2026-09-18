@@ -1,31 +1,31 @@
 name: Docker Hub CI-CD
 
 on:
-  push:
-    branches: [main, feature/docker]
-    tags: ['v*']
   pull_request:
-    branches: [main, feature/docker]
-  workflow_dispatch:
+    branches: [main]
+    types: [closed]
 
 permissions:
   contents: read
 
-# Serialize releases so two runs cannot overwrite mutable tags out of order.
+# Only merged PRs publish. Keep release runs from writing shared tags concurrently.
 concurrency:
-  group: docker-hub-${{ github.event_name == 'pull_request' && github.ref || 'release' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: docker-hub-main-release
+  cancel-in-progress: false
 
 env:
   IMAGE_NAME: tuongkien/chat-server
 
 jobs:
   validate:
+    if: github.event.pull_request.merged == true
     name: Build and test Lab2
     runs-on: windows-2022
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: '10.0.x'
@@ -44,6 +44,7 @@ jobs:
         run: dotnet run --project Lab2.Tests --configuration Release --no-build -- --ui
 
   docker-test:
+    if: github.event.pull_request.merged == true
     name: Test image (${{ matrix.target }})
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -53,6 +54,8 @@ jobs:
         target: [no-db, all-in-one]
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - name: Build image locally for testing
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
@@ -73,9 +76,7 @@ jobs:
   publish:
     name: Publish (${{ matrix.target }})
     needs: [validate, docker-test]
-    if: >-
-      github.event_name != 'pull_request' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/docker' || startsWith(github.ref, 'refs/tags/v'))
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     strategy:
@@ -92,6 +93,8 @@ jobs:
             exit 1
           fi
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - name: Docker Hub login
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
@@ -105,17 +108,8 @@ jobs:
         run: |
           {
             echo 'tags<<EOF'
-            echo "${IMAGE_NAME}:${TARGET}-sha-${GITHUB_SHA}"
-            if [[ "$GITHUB_REF_TYPE" == 'tag' ]]; then
-              if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9][A-Za-z0-9_.-]*$ ]]; then
-                echo '::error::Version tags must use Docker-compatible characters, e.g. v2.0.0.' >&2
-                exit 1
-              fi
-              echo "${IMAGE_NAME}:${TARGET}-${GITHUB_REF_NAME}"
-            else
-              echo "${IMAGE_NAME}:${TARGET}"
-              if [[ "$TARGET" == 'no-db' ]]; then echo "${IMAGE_NAME}:latest"; fi
-            fi
+            echo "${IMAGE_NAME}:${TARGET}"
+            if [[ "$TARGET" == 'no-db' ]]; then echo "${IMAGE_NAME}:latest"; fi
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
       - name: Push tested image to Docker Hub
@@ -130,7 +124,7 @@ jobs:
           tags: ${{ steps.tags.outputs.tags }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ github.event.pull_request.merge_commit_sha }}
           cache-from: type=gha,scope=${{ matrix.target }}
           provenance: mode=min
           sbom: true
@@ -142,5 +136,5 @@ jobs:
           {
             echo "### Published ${IMAGE_NAME} (${TARGET})"
             echo "Digest: \`${DIGEST}\`"
-            echo "Pull exact version: \`docker pull ${IMAGE_NAME}:${TARGET}-sha-${GITHUB_SHA}\`"
+            echo "Pull updated image: \`docker pull ${IMAGE_NAME}:${TARGET}\`"
           } >> "$GITHUB_STEP_SUMMARY"
