@@ -70,7 +70,13 @@ namespace ChatServer.Networking
                     }
 
                     // Điều phối gói tin đến đúng handler
-                    await RouteMessageAsync(message);
+                    try { await RouteMessageAsync(message); }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        var error = NetworkMessage.CreateError(ex.Message);
+                        error.RequestId = message.RequestId;
+                        await _connection.SendAsync(error);
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -96,6 +102,11 @@ namespace ChatServer.Networking
         /// </summary>
         private async Task RouteMessageAsync(NetworkMessage message)
         {
+            if (_connection.IsAuthenticated && message.Type is MessageType.Login or MessageType.Register)
+            {
+                await _connection.SendAsync(NetworkMessage.CreateError("Already authenticated."));
+                return;
+            }
             switch (message.Type)
             {
                 // Xác thực - không cần đăng nhập trước
@@ -112,6 +123,11 @@ namespace ChatServer.Networking
                     await RequireAuthAsync(() => HandleSendMessageAsync(message));
                     break;
 
+                case MessageType.UploadStart:
+                case MessageType.UploadChunk:
+                case MessageType.UploadFinish:
+                case MessageType.UploadCancel:
+                case MessageType.DownloadChunk:
                 case MessageType.SendFile:
                     await RequireAuthAsync(() => HandleSendFileAsync(message));
                     break;
@@ -124,6 +140,9 @@ namespace ChatServer.Networking
                     await RequireAuthAsync(() => HandleGetConversationsAsync());
                     break;
 
+                case MessageType.JoinConversation:
+                    await RequireAuthAsync(() => HandleJoinConversationAsync(message));
+                    break;
                 case MessageType.CreateConversation:
                     await RequireAuthAsync(() => HandleCreateConversationAsync(message));
                     break;
@@ -195,6 +214,11 @@ namespace ChatServer.Networking
                     response.SenderId.Value,
                     response.SenderName ?? "Unknown");
 
+                await _server.BroadcastToAllExceptAsync(new NetworkMessage
+                {
+                    Type = MessageType.UserOnline, SenderId = response.SenderId, SenderName = response.SenderName
+                }, _connection.ConnectionId);
+
                 Console.WriteLine(
                     $"[*] User '{response.SenderName}' registered " +
                     $"[{_connection.ConnectionId[..8]}]");
@@ -225,17 +249,21 @@ namespace ChatServer.Networking
 
         private async Task HandleSendFileAsync(NetworkMessage message)
         {
-            var broadcast = await _fileService.SaveAndBroadcastFileAsync(
+            var broadcast = await _fileService.HandleAsync(
                 _connection.AuthenticatedUserId!.Value,
                 _connection.DisplayName!,
                 message);
 
-            if (broadcast.Type == MessageType.Error)
+            if (broadcast.Type != MessageType.BroadcastMessage)
             {
                 await _connection.SendAsync(broadcast);
                 return;
             }
-
+            await _connection.SendAsync(new NetworkMessage
+            {
+                Type = MessageType.TransferResponse, RequestId = message.RequestId,
+                Payload = JsonSerializer.SerializeToElement(new { completed = true })
+            });
             await _server.BroadcastToConversationAsync(
                 broadcast,
                 broadcast.ConversationId!.Value);
@@ -260,14 +288,18 @@ namespace ChatServer.Networking
 
         private async Task HandleCreateConversationAsync(NetworkMessage message)
         {
-            var response = await _messageService.CreateConversationAsync(
-                _connection.AuthenticatedUserId!.Value,
-                message.Payload);
-
+            var response = await _messageService.CreateConversationAsync(_connection.AuthenticatedUserId!.Value, message.Payload);
             await _connection.SendAsync(response);
+            if (response.ConversationId.HasValue)
+                await _server.BroadcastToConversationAsync(new NetworkMessage { Type = MessageType.ConversationsChanged }, response.ConversationId.Value);
         }
-
-        // ── Người dùng online ─────────────────────────────────────
+        private async Task HandleJoinConversationAsync(NetworkMessage message)
+        {
+            var response = await _messageService.JoinConversationAsync(_connection.AuthenticatedUserId!.Value, message.ConversationId ?? 0);
+            await _connection.SendAsync(response);
+            if (response.ConversationId.HasValue)
+                await _server.BroadcastToConversationAsync(new NetworkMessage { Type = MessageType.ConversationsChanged }, response.ConversationId.Value);
+        }
 
         private async Task HandleGetOnlineUsersAsync()
         {
@@ -311,6 +343,7 @@ namespace ChatServer.Networking
         /// </summary>
         private async Task CleanupAsync()
         {
+            _fileService.Dispose();
             if (_connection.IsAuthenticated)
             {
                 await _authService.SetUserOfflineAsync(

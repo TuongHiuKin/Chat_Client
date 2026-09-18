@@ -41,15 +41,18 @@ namespace ChatServer.Networking
         private readonly TcpClient _tcpClient;
         private readonly NetworkStream _stream;
         private readonly StreamReader _reader;
+        private readonly ChatSystem.Protocol.JsonLineReader _frames;
         private readonly SemaphoreSlim _writeLock = new(1, 1);
         private bool _disposed;
 
         public ClientConnection(TcpClient tcpClient)
         {
             _tcpClient = tcpClient;
+            tcpClient.NoDelay = true;
             _stream = tcpClient.GetStream();
             // Dùng StreamReader để đọc từng dòng (mỗi NetworkMessage kết thúc bằng '\n')
             _reader = new StreamReader(_stream, Encoding.UTF8, leaveOpen: true);
+            _frames = new(_reader, 512 * 1024);
         }
 
         // ── Xác thực ──────────────────────────────────────────────
@@ -70,7 +73,7 @@ namespace ChatServer.Networking
         public async Task<NetworkMessage?> ReadMessageAsync(
             CancellationToken ct = default)
         {
-            string? line = await _reader.ReadLineAsync(ct);
+            string? line = await _frames.ReadLineAsync(ct);
             if (line is null) return null; // Client đóng kết nối
 
             return NetworkMessage.Deserialize(line);
@@ -105,7 +108,7 @@ namespace ChatServer.Networking
             if (_disposed) return;
             _disposed = true;
 
-            _writeLock.Dispose();
+
             _reader.Dispose();
             _stream.Dispose();
             _tcpClient.Dispose();

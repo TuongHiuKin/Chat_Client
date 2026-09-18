@@ -37,8 +37,10 @@ namespace ChatClient
         private readonly ObservableCollection<OnlineUserItem> _onlineUsers = new();
 
         // ── Trạng thái UI ────────────────────────────────────────────────────
+        private bool _isClosing;
         private bool _isLoginMode = true;       // True = đang ở tab Login, False = Register
         private int? _currentConversationId;    // ID hội thoại đang xem
+        private int? _selectConversationId;
         private int _historyOffset;             // Offset phân trang lịch sử tin nhắn
 
         // ── Khởi tạo ─────────────────────────────────────────────────────────
@@ -79,6 +81,7 @@ namespace ChatClient
             _client.OnDisconnected += reason =>
                 Dispatcher.Invoke(() =>
                 {
+                    if (_isClosing) return;
                     HideLoading();
                     BtnConnect.IsEnabled = true;
                     if (ChatPanel.Visibility == Visibility.Visible)
@@ -320,8 +323,9 @@ namespace ChatClient
                 }
             }
 
-            _messages.Add(new ChatMessage
+            var chatMessage = new ChatMessage
             {
+                AttachmentId = message.Payload is { } metadata && metadata.TryGetProperty("attachmentId", out var aid) ? aid.GetInt64() : null,
                 SenderId = message.SenderId,
                 SenderName = message.SenderName ?? "Unknown",
                 Content = message.Content ?? string.Empty,
@@ -332,8 +336,9 @@ namespace ChatClient
                 FileSize = fileSize,
                 RawFileData = rawBytes,
                 ImageSource = imgSource,
-            });
-
+            };
+            _messages.Add(chatMessage);
+            _ = LoadPreviewAsync(chatMessage);
             ScrollToBottom();
         }
 
@@ -343,7 +348,7 @@ namespace ChatClient
         /// </summary>
         private void HandleHistoryResponse(NetworkMessage message)
         {
-            if (!message.Payload.HasValue) return;
+            if (!message.Payload.HasValue || message.ConversationId != _currentConversationId) return;
 
             var payload = message.Payload.Value;
             if (!payload.TryGetProperty("messages", out var messagesEl)) return;
@@ -390,6 +395,8 @@ namespace ChatClient
 
                 newMessages.Add(new ChatMessage
                 {
+                    AttachmentId = item.TryGetProperty("attachment", out var attachment) && attachment.ValueKind == JsonValueKind.Object
+                        && attachment.TryGetProperty("attachmentId", out var attachmentId) ? attachmentId.GetInt64() : null,
                     SenderId = senderId,
                     SenderName = senderName,
                     Content = content ?? string.Empty,
@@ -417,6 +424,7 @@ namespace ChatClient
                     _messages.Insert(0, newMessages[i]);
             }
 
+            foreach (var msg in newMessages) _ = LoadPreviewAsync(msg);
             BtnLoadMore.Visibility = hasMoreEl.GetBoolean()
                 ? Visibility.Visible : Visibility.Collapsed;
         }
@@ -426,8 +434,14 @@ namespace ChatClient
         {
             if (!message.Payload.HasValue) return;
             var payload = message.Payload.Value;
-            if (!payload.TryGetProperty("conversations", out var convEl)) return;
+            if (!payload.TryGetProperty("conversations", out var convEl))
+            {
+                if (message.ConversationId.HasValue) _selectConversationId = message.ConversationId;
+                return;
+            }
 
+            int? selectedId = message.ConversationId ?? _selectConversationId ?? _currentConversationId;
+            _selectConversationId = null;
             _conversations.Clear();
             foreach (var item in convEl.EnumerateArray())
             {
@@ -443,12 +457,23 @@ namespace ChatClient
                 _conversations.Add(new ConversationItem
                 {
                     ConversationId = id,
-                    Name = name ?? $"Hội thoại #{id}",
+                    Name = (type == "group" ? $"#{id} - " : "") + (name ?? $"Hội thoại #{id}"),
                     Type = type,
                     TypeLabel = type == "group"
                         ? $"👥 Nhóm • {memberCount} thành viên"
                         : "💬 Chat 1-1",
                 });
+            }
+            var selected = _conversations.FirstOrDefault(c => c.ConversationId == selectedId);
+            LstConversations.SelectionChanged -= LstConversations_SelectionChanged;
+            LstConversations.SelectedItem = selected;
+            LstConversations.SelectionChanged += LstConversations_SelectionChanged;
+            if (selected != null)
+            {
+                TxtConversationTitle.Text = selected.Name;
+                TxtConversationType.Text = selected.TypeLabel;
+                if (_currentConversationId != selected.ConversationId)
+                    LstConversations_SelectionChanged(LstConversations, new SelectionChangedEventArgs(ListBox.SelectionChangedEvent, Array.Empty<object>(), new[] { selected }));
             }
         }
 
@@ -549,23 +574,17 @@ namespace ChatClient
         /// <summary>Tạo cuộc hội thoại mới (hiện tại: direct chat với người dùng online).</summary>
         private async void BtnNewConversation_Click(object sender, RoutedEventArgs e)
         {
-            // TODO: Mở dialog chọn thành viên và tên nhóm
-            // Hiện tại: tạo cuộc hội thoại test 1-1 với bản thân (demo)
-            var dialog = new NewConversationDialog(_onlineUsers, _client.CurrentUserId);
-            dialog.Owner = this;
-            if (dialog.ShowDialog() == true && dialog.SelectedUserId.HasValue)
+            var dialog = new NewConversationDialog(_onlineUsers, _client.CurrentUserId) { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+            try
             {
-                await _client.CreateConversationAsync(
-                    "direct",
-                    null,
-                    new[] { dialog.SelectedUserId.Value });
-
-                // Làm mới danh sách hội thoại
+                if (dialog.JoinId.HasValue) await _client.JoinConversationAsync(dialog.JoinId.Value);
+                else await _client.CreateConversationAsync(dialog.ConversationType, dialog.GroupName, dialog.MemberIds);
                 await _client.GetConversationsAsync();
             }
+            catch (Exception ex) { ShowError(ex.Message); }
         }
 
-        /// <summary>Làm mới danh sách hội thoại và trạng thái online.</summary>
         private async void BtnRefresh_Click(object sender, RoutedEventArgs e)
         {
             await _client.GetConversationsAsync();
@@ -583,6 +602,7 @@ namespace ChatClient
         /// <summary>Đăng xuất: ngắt kết nối và quay về màn hình Auth.</summary>
         private void BtnLogout_Click(object sender, RoutedEventArgs e)
         {
+            SwitchToAuthPanel();
             _client.Disconnect();
             _messages.Clear();
             _conversations.Clear();
@@ -609,7 +629,7 @@ namespace ChatClient
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            _client.Disconnect();
+            _isClosing = true;
             _client.Dispose();
         }
 
@@ -647,6 +667,11 @@ namespace ChatClient
         /// <summary>Hiển thị thông báo lỗi trên Auth Panel.</summary>
         private void ShowError(string message)
         {
+            if (ChatPanel.Visibility == Visibility.Visible)
+            {
+                MessageBox.Show(this, message, "Chat", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
             TxtErrorMsg.Text = message;
             ErrorBorder.Visibility = Visibility.Visible;
         }
@@ -786,7 +811,6 @@ namespace ChatClient
             {
                 Path.Combine(AppContext.BaseDirectory, "Assets", "Emojis", $"{codePoint}.png"),
                 Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Emojis", $"{codePoint}.png"),
-                Path.Combine(@"e:\PRN222\ChatSystem\ChatClient\Assets\Emojis", $"{codePoint}.png"),
             };
 
             foreach (var path in searchPaths)
@@ -885,129 +909,28 @@ namespace ChatClient
             EmojiPopup.IsOpen = !EmojiPopup.IsOpen;
         }
 
-        private async void BtnSendImage_Click(object sender, RoutedEventArgs e)
+        private async void BtnSendImage_Click(object sender, RoutedEventArgs e) => await PickAndSendAsync(true);
+        private async void BtnSendFile_Click(object sender, RoutedEventArgs e) => await PickAndSendAsync(false);
+        private async void BtnDownloadFile_Click(object sender, RoutedEventArgs e)
         {
-            if (!_currentConversationId.HasValue) return;
-
-            var ofd = new OpenFileDialog
-            {
-                Title = "Chọn hình ảnh để gửi",
-                Filter = "Hình ảnh (*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp)|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp|Tất cả tập tin (*.*)|*.*",
-                Multiselect = false,
-            };
-
-            if (ofd.ShowDialog() == true)
-            {
-                try
-                {
-                    var fi = new FileInfo(ofd.FileName);
-                    if (fi.Length > 10 * 1024 * 1024)
-                    {
-                        MessageBox.Show("Kích thước hình ảnh vượt quá giới hạn 10 MB.", "Thông báo", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
-                    }
-
-                    await _client.SendFileAsync(_currentConversationId.Value, ofd.FileName, "image");
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Lỗi gửi ảnh: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            }
+            if (sender is FrameworkElement { DataContext: ChatMessage msg }) await SaveAttachmentAsync(msg);
         }
-
-        private async void BtnSendFile_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_currentConversationId.HasValue) return;
-
-            var ofd = new OpenFileDialog
-            {
-                Title = "Chọn tập tin để gửi",
-                Filter = "Tất cả tập tin (*.*)|*.*",
-                Multiselect = false,
-            };
-
-            if (ofd.ShowDialog() == true)
-            {
-                try
-                {
-                    var fi = new FileInfo(ofd.FileName);
-                    if (fi.Length > 10 * 1024 * 1024)
-                    {
-                        MessageBox.Show("Kích thước tập tin vượt quá giới hạn 10 MB.", "Thông báo", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
-                    }
-
-                    await _client.SendFileAsync(_currentConversationId.Value, ofd.FileName, "file");
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Lỗi gửi tập tin: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            }
-        }
-
-        private void BtnDownloadFile_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is FrameworkElement fe && fe.DataContext is ChatMessage msg)
-            {
-                if (msg.RawFileData == null || msg.RawFileData.Length == 0)
-                {
-                    MessageBox.Show("Không có dữ liệu tập tin để tải về.", "Thông báo", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                var sfd = new SaveFileDialog
-                {
-                    Title = "Lưu tập tin",
-                    FileName = msg.FileName ?? "downloaded_file",
-                    Filter = "Tất cả tập tin (*.*)|*.*",
-                };
-
-                if (sfd.ShowDialog() == true)
-                {
-                    try
-                    {
-                        File.WriteAllBytes(sfd.FileName, msg.RawFileData);
-                        MessageBox.Show("Tải tập tin thành công!", "Thông báo", MessageBoxButton.OK, MessageBoxImage.Information);
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show($"Lỗi khi lưu tập tin: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                }
-            }
-        }
-
         private void Image_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
-            if (sender is FrameworkElement fe && fe.DataContext is ChatMessage msg && msg.RawFileData != null)
+            if (sender is FrameworkElement { DataContext: ChatMessage msg } && msg.ImageSource != null)
             {
-                var result = MessageBox.Show("Bạn có muốn lưu hình ảnh này về máy không?", "Hình ảnh", MessageBoxButton.YesNo, MessageBoxImage.Question);
-                if (result == MessageBoxResult.Yes)
-                {
-                    var sfd = new SaveFileDialog
-                    {
-                        Title = "Lưu hình ảnh",
-                        FileName = msg.FileName ?? "image.png",
-                        Filter = "Hình ảnh (*.png;*.jpg)|*.png;*.jpg|Tất cả tập tin (*.*)|*.*",
-                    };
-
-                    if (sfd.ShowDialog() == true)
-                    {
-                        try
-                        {
-                            File.WriteAllBytes(sfd.FileName, msg.RawFileData);
-                            MessageBox.Show("Lưu hình ảnh thành công!", "Thông báo", MessageBoxButton.OK, MessageBoxImage.Information);
-                        }
-                        catch (Exception ex)
-                        {
-                            MessageBox.Show($"Lỗi khi lưu ảnh: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
-                        }
-                    }
-                }
+                var panel = new DockPanel();
+                var save = new Button { Content = "Save original", Padding = new Thickness(12) };
+                DockPanel.SetDock(save, Dock.Bottom);
+                panel.Children.Add(save);
+                panel.Children.Add(new Image { Source = msg.ImageSource, Stretch = System.Windows.Media.Stretch.Uniform });
+                var window = new Window { Owner = this, Title = msg.FileName ?? "Preview", Width = 700, Height = 550,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = panel };
+                save.Click += async (_, _) => await SaveAttachmentAsync(msg);
+                window.Show();
             }
         }
+
     }
 
     // ══════════════════════════════════════════════════════════════════════════

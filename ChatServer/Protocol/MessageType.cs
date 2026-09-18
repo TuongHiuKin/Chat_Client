@@ -33,6 +33,8 @@ namespace ChatServer.Protocol
 
         /// <summary>Client gửi tập tin hoặc hình ảnh đính kèm.</summary>
         SendFile = 14,
+        UploadStart = 40, UploadChunk = 41, UploadFinish = 42, UploadCancel = 43,
+        DownloadChunk = 44, TransferResponse = 45, JoinConversation = 46, ConversationsChanged = 47,
 
         // ── Cuộc hội thoại ────────────────────────────────────────
         /// <summary>Client yêu cầu danh sách các cuộc hội thoại của mình.</summary>

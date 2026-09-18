@@ -49,6 +49,7 @@ namespace ChatServer.Services
             if (string.IsNullOrWhiteSpace(incomingMessage.Content))
                 return NetworkMessage.CreateError("Message content cannot be empty.");
 
+            if (incomingMessage.Content.Length > 8192) return NetworkMessage.CreateError("Message limit: 8192 characters.");
             int conversationId = incomingMessage.ConversationId.Value;
 
             // Kiểm tra người gửi có phải thành viên cuộc hội thoại không
@@ -120,37 +121,21 @@ namespace ChatServer.Services
                     "You are not a member of this conversation.");
 
             // Tải danh sách tin nhắn từ DB, sắp xếp mới nhất trước, phân trang
-            var rawMessages = await _db.Messages
-                .AsNoTracking()
+            // Project metadata only: never load file bodies while paging chat history.
+            var messages = await _db.Messages.AsNoTracking()
                 .Where(m => m.ConversationId == conversationId && !m.IsDeleted)
-                .OrderByDescending(m => m.SentAt)
-                .Skip(offset)
-                .Take(HistoryPageSize)
-                .Include(m => m.Sender)
-                .Include(m => m.Attachments)
-                .ToListAsync();
-
-            var messages = rawMessages.Select(m =>
-            {
-                var att = m.Attachments.FirstOrDefault();
-                return new
+                .OrderByDescending(m => m.SentAt).ThenByDescending(m => m.MessageId)
+                .Skip(Math.Max(0, offset)).Take(HistoryPageSize)
+                .Select(m => new
                 {
-                    messageId = m.MessageId,
-                    senderId = m.SenderId,
-                    senderName = m.Sender?.DisplayName ?? "Unknown",
-                    content = m.Content,
-                    sentAt = m.SentAt,
-                    messageType = m.MessageType,
-                    attachment = att == null ? null : new
+                    messageId = m.MessageId, senderId = m.SenderId, senderName = m.Sender.DisplayName,
+                    content = m.Content, sentAt = m.SentAt, messageType = m.MessageType,
+                    attachment = m.Attachments.Select(a => new
                     {
-                        attachmentId = att.AttachmentId,
-                        fileName = att.FileName,
-                        fileSize = att.FileSize,
-                        contentType = att.ContentType,
-                        dataBase64 = att.FileData != null ? Convert.ToBase64String(att.FileData) : null,
-                    }
-                };
-            }).ToList();
+                        attachmentId = a.AttachmentId, fileName = a.FileName,
+                        fileSize = a.FileSize, contentType = a.ContentType
+                    }).FirstOrDefault()
+                }).ToListAsync();
 
             var historyPayload = new
             {
@@ -244,6 +229,14 @@ namespace ChatServer.Services
             }
 
             // Tạo cuộc hội thoại mới
+            memberIds = memberIds.Distinct().ToList();
+            if (conversationType is not ("direct" or "group")) return NetworkMessage.CreateError("Invalid conversation type.");
+            if (conversationType == "direct" && memberIds.Count != 2) return NetworkMessage.CreateError("Direct chat requires two members.");
+            if (conversationType == "group" && (string.IsNullOrWhiteSpace(conversationName) || conversationName.Length > 100))
+                return NetworkMessage.CreateError("Group name must contain 1-100 characters.");
+            if (await _db.Users.CountAsync(u => memberIds.Contains(u.UserId)) != memberIds.Count)
+                return NetworkMessage.CreateError("One or more users do not exist.");
+            await using var transaction = await _db.Database.BeginTransactionAsync();
             var conversation = new Conversation
             {
                 ConversationType = conversationType,
@@ -266,6 +259,7 @@ namespace ChatServer.Services
 
             await _db.SaveChangesAsync();
 
+            await transaction.CommitAsync();
             var responsePayload = new
             {
                 conversationId = conversation.ConversationId,
@@ -281,6 +275,24 @@ namespace ChatServer.Services
                 Payload = JsonSerializer.SerializeToElement(responsePayload),
                 Timestamp = DateTime.UtcNow,
             };
+        }
+        // The numeric group ID is a shareable join code. Direct conversations cannot be joined.
+        public async Task<NetworkMessage> JoinConversationAsync(int userId, int conversationId)
+        {
+            await using var transaction = await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+            var group = await _db.Conversations.FromSqlInterpolated($"SELECT * FROM Conversations WITH (UPDLOCK, HOLDLOCK) WHERE ConversationId = {conversationId}")
+                .AsNoTracking().SingleOrDefaultAsync();
+            if (group?.ConversationType != "group")
+                return NetworkMessage.CreateError("Group not found.");
+            if (!await _db.ConversationMembers.AnyAsync(m => m.ConversationId == conversationId && m.UserId == userId))
+            {
+                _db.ConversationMembers.Add(new ConversationMember { ConversationId = conversationId, UserId = userId });
+                await _db.SaveChangesAsync();
+            }
+            await transaction.CommitAsync();
+            var response = await GetConversationsAsync(userId);
+            response.ConversationId = conversationId;
+            return response;
         }
     }
 }

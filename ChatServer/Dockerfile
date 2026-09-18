@@ -18,7 +18,7 @@ USER root
 # Copy ứng dụng ChatServer đã publish độc lập
 WORKDIR /app
 COPY --from=build /app/publish .
-RUN chmod -R 755 /app
+RUN chmod -R 755 /app && mkdir -p /app/uploads && chown mssql:root /app/uploads
 
 # Copy kịch bản khởi động
 COPY ChatServer/entrypoint.sh /entrypoint.sh

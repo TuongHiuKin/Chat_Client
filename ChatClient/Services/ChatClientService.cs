@@ -17,6 +17,8 @@ namespace ChatClient.Services
         SendMessage = 10, BroadcastMessage = 11,
         GetHistory = 12, HistoryResponse = 13,
         SendFile = 14,
+        UploadStart = 40, UploadChunk = 41, UploadFinish = 42, UploadCancel = 43,
+        DownloadChunk = 44, TransferResponse = 45, JoinConversation = 46, ConversationsChanged = 47,
         GetConversations = 20, ConversationsResponse = 21,
         CreateConversation = 22,
         UserOnline = 30, UserOffline = 31,
@@ -27,6 +29,7 @@ namespace ChatClient.Services
     /// <summary>Cấu trúc gói tin JSON - phải khớp với NetworkMessage trên Server.</summary>
     public class NetworkMessage
     {
+        public string? RequestId { get; set; }
         public MessageType Type { get; set; }
         public int? SenderId { get; set; }
         public string? SenderName { get; set; }
@@ -61,7 +64,7 @@ namespace ChatClient.Services
     ///   - Phát ra sự kiện cho MainWindow để cập nhật giao diện.
     /// Lưu ý: Không lưu dữ liệu vào DB - Client chỉ hiển thị, DB do Server quản lý.
     /// </summary>
-    public class ChatClientService : IDisposable
+    public partial class ChatClientService : IDisposable
     {
         // ── Sự kiện thông báo lên giao diện ──────────────────────────────────
 
@@ -115,9 +118,12 @@ namespace ChatClient.Services
         // ── Tài nguyên mạng ──────────────────────────────────────────────────
         private TcpClient? _tcpClient;
         private StreamReader? _reader;
+        private ChatSystem.Protocol.JsonLineReader? _frames;
         private NetworkStream? _stream;
         private CancellationTokenSource? _cts;
         private bool _disposed;
+        private readonly SemaphoreSlim _sendLock = new(1, 1);
+        private Task? _receiveTask;
 
         // ── Kết nối / Ngắt kết nối ───────────────────────────────────────────
 
@@ -131,12 +137,13 @@ namespace ChatClient.Services
         {
             // Giải phóng kết nối cũ nếu còn tồn tại
             CleanupResources();
-
-            _tcpClient = new TcpClient();
+            if (_receiveTask != null) await _receiveTask;
+            _tcpClient = new TcpClient { NoDelay = true };
             await _tcpClient.ConnectAsync(host, port);
 
             _stream = _tcpClient.GetStream();
             _reader = new StreamReader(_stream, Encoding.UTF8, leaveOpen: true);
+            _frames = new(_reader, 4 * 1024 * 1024);
 
             _cts = new CancellationTokenSource();
 
@@ -144,7 +151,8 @@ namespace ChatClient.Services
             OnConnected?.Invoke();
 
             // Bắt đầu vòng lặp đọc phản hồi ngầm
-            _ = Task.Run(() => ReceiveLoopAsync(_cts.Token));
+            var token = _cts.Token;
+            _receiveTask = Task.Run(() => ReceiveLoopAsync(token));
         }
 
         /// <summary>
@@ -260,66 +268,14 @@ namespace ChatClient.Services
         /// Gửi tập tin hoặc hình ảnh đến một cuộc hội thoại.
         /// Đọc file và mã hoá Base64 để gửi qua TCP.
         /// </summary>
-        public async Task SendFileAsync(int conversationId, string filePath, string messageType = "file")
-        {
-            if (!File.Exists(filePath))
-                throw new FileNotFoundException("File does not exist.", filePath);
-
-            var fileInfo = new FileInfo(filePath);
-            if (fileInfo.Length > 10 * 1024 * 1024)
-                throw new InvalidOperationException("File size exceeds 10 MB limit.");
-
-            byte[] bytes = await File.ReadAllBytesAsync(filePath);
-            string base64 = Convert.ToBase64String(bytes);
-            string fileName = Path.GetFileName(filePath);
-            string ext = Path.GetExtension(filePath).ToLowerInvariant();
-
-            string contentType = ext switch
-            {
-                ".jpg" or ".jpeg" => "image/jpeg",
-                ".png" => "image/png",
-                ".gif" => "image/gif",
-                ".webp" => "image/webp",
-                ".bmp" => "image/bmp",
-                ".pdf" => "application/pdf",
-                ".txt" => "text/plain",
-                ".zip" => "application/zip",
-                _ => "application/octet-stream"
-            };
-
-            var payload = new
-            {
-                fileName,
-                fileSize = fileInfo.Length,
-                contentType,
-                messageType,
-                dataBase64 = base64,
-            };
-
-            await SendAsync(new NetworkMessage
-            {
-                Type = MessageType.SendFile,
-                ConversationId = conversationId,
-                Content = fileName,
-                Payload = JsonSerializer.SerializeToElement(payload),
-            });
-        }
-
-        // ── Vòng lặp đọc phản hồi ngầm ───────────────────────────────────────
-
-        /// <summary>
-        /// Vòng lặp chạy ngầm (background Task), liên tục đọc gói tin từ Server
-        /// và phát ra sự kiện tương ứng để giao diện WPF cập nhật.
-        /// Kết thúc khi Server đóng kết nối hoặc CancellationToken bị huỷ.
-        /// </summary>
         private async Task ReceiveLoopAsync(CancellationToken ct)
         {
             try
             {
                 while (!ct.IsCancellationRequested && _reader is not null)
                 {
-                    string? line = await _reader.ReadLineAsync(ct);
-                    if (line is null) break; // Server đóng kết nối
+                    string? line = await _frames!.ReadLineAsync(ct);
+                    if (line is null) { OnDisconnected?.Invoke("Server closed the connection."); break; } // Server đóng kết nối
 
                     var message = NetworkMessage.Deserialize(line);
                     if (message is null) continue; // Gói tin không hợp lệ, bỏ qua
@@ -330,7 +286,7 @@ namespace ChatClient.Services
             catch (OperationCanceledException) { /* Bị cancel chủ động */ }
             catch (Exception ex)
             {
-                OnDisconnected?.Invoke($"Connection lost: {ex.Message}");
+                if (!ct.IsCancellationRequested) OnDisconnected?.Invoke($"Connection lost: {ex.Message}");
             }
             finally
             {
@@ -343,8 +299,17 @@ namespace ChatClient.Services
         /// </summary>
         private void ProcessReceivedMessage(NetworkMessage message)
         {
+            if (message.RequestId != null && _pending.TryRemove(message.RequestId, out var pending))
+            {
+                if (message.Type == MessageType.Error) pending.TrySetException(new IOException(message.Content));
+                else pending.TrySetResult(message);
+                return;
+            }
             switch (message.Type)
             {
+                case MessageType.ConversationsChanged:
+                    _ = RefreshConversationsSafelyAsync();
+                    break;
                 case MessageType.AuthResponse:
                     HandleAuthResponse(message);
                     break;
@@ -429,22 +394,29 @@ namespace ChatClient.Services
         // ── Gửi gói tin ──────────────────────────────────────────────────────
 
         /// <summary>Gửi một NetworkMessage đến Server qua TCP stream.</summary>
-        private async Task SendAsync(NetworkMessage message)
+        private async Task SendAsync(NetworkMessage message, CancellationToken ct = default)
         {
-            if (_stream is null || !IsConnected)
-                throw new InvalidOperationException(
-                    "Not connected to server.");
-
-            string json = message.Serialize();
-            byte[] data = Encoding.UTF8.GetBytes(json);
-            await _stream.WriteAsync(data);
-            await _stream.FlushAsync();
+            await _sendLock.WaitAsync(ct).ConfigureAwait(false);
+            try
+            {
+                var stream = _stream ?? throw new IOException("Not connected to server.");
+                byte[] data = Encoding.UTF8.GetBytes(message.Serialize());
+                try { await stream.WriteAsync(data, ct).ConfigureAwait(false); }
+                catch { _tcpClient?.Close(); throw; }
+            }
+            finally { _sendLock.Release(); }
         }
-
-        // ── Giải phóng tài nguyên ─────────────────────────────────────────────
+        private async Task RefreshConversationsSafelyAsync()
+        {
+            try { await GetConversationsAsync(); }
+            catch (Exception ex) { OnError?.Invoke(ex.Message); }
+        }
+        public Task JoinConversationAsync(int id) => SendAsync(new NetworkMessage { Type = MessageType.JoinConversation, ConversationId = id });
 
         private void CleanupResources()
         {
+            foreach (var key in _pending.Keys)
+                if (_pending.TryRemove(key, out var request)) request.TrySetException(new IOException("Disconnected."));
             _cts?.Cancel();
             _cts?.Dispose();
             _cts = null;
