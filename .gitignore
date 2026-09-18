@@ -29,3 +29,7 @@ out/
 # Lab2 file storage and integration artifacts
 uploads/
 .lab2-tests/
+
+# Python smoke test output
+__pycache__/
+*.pyc

@@ -23,6 +23,7 @@ services:
     build:
       context: .
       dockerfile: ChatServer/Dockerfile
+      target: no-db
     container_name: chat_server
     restart: unless-stopped
     depends_on:

@@ -1,38 +1,39 @@
-# ============================================================
-# Stage 1: Build & Publish ChatServer (Self-contained Linux x64)
-# ============================================================
+# syntax=docker/dockerfile:1
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
-COPY ["ChatServer/ChatServer.csproj", "ChatServer/"]
-RUN dotnet restore "ChatServer/ChatServer.csproj" -r linux-x64
-COPY . .
-WORKDIR "/src/ChatServer"
-RUN dotnet publish "ChatServer.csproj" -c Release -r linux-x64 --self-contained true -o /app/publish
+COPY ChatServer/ChatServer.csproj ChatServer/
+RUN dotnet restore ChatServer/ChatServer.csproj -r linux-x64
+COPY ChatServer/ ChatServer/
+COPY Shared/ Shared/
+RUN dotnet publish ChatServer/ChatServer.csproj -c Release -r linux-x64 \
+    --self-contained true --no-restore -o /app/publish \
+    && cp ChatServer/appsettings.example.json /app/publish/appsettings.json
 
-# ============================================================
-# Stage 2: All-in-One Runtime (SQL Server 2022 + ChatServer)
-# ============================================================
-FROM mcr.microsoft.com/mssql/server:2022-latest AS final
-USER root
-
-# Copy ứng dụng ChatServer đã publish độc lập
+# Use this target with an external SQL Server (including docker compose).
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0 AS no-db
 WORKDIR /app
-COPY --from=build /app/publish .
-RUN chmod -R 755 /app && mkdir -p /app/uploads && chown mssql:root /app/uploads
+COPY --from=build /app/publish/ ./
+RUN mkdir -p /app/uploads && chown -R app:app /app/uploads
+ENV ServerSettings__Host=0.0.0.0 \
+    ServerSettings__Port=5000 \
+    CHAT_STORAGE_PATH=/app/uploads
+EXPOSE 5000
+USER app
+ENTRYPOINT ["./ChatServer"]
 
-# Copy kịch bản khởi động
+# Keep all-in-one as the default target for existing docker build commands.
+FROM mcr.microsoft.com/mssql/server:2022-latest AS all-in-one
+USER root
+WORKDIR /app
+COPY --from=build /app/publish/ ./
 COPY ChatServer/entrypoint.sh /entrypoint.sh
-RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
-
-# Cấu hình mặc định: SQL Server + ChatServer kết nối nội bộ qua localhost
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh \
+    && mkdir -p /app/uploads && chown mssql:root /app/uploads
 ENV ACCEPT_EULA=Y \
-    MSSQL_SA_PASSWORD=Password@12345 \
     MSSQL_PID=Developer \
-    ConnectionStrings__DefaultConnection="Server=127.0.0.1,1433;Database=ChatDB;User Id=sa;Password=Password@12345;TrustServerCertificate=True" \
-    ServerSettings__Host="0.0.0.0" \
-    ServerSettings__Port="5000"
-
-EXPOSE 5000 1433
-
+    ServerSettings__Host=0.0.0.0 \
+    ServerSettings__Port=5000 \
+    CHAT_STORAGE_PATH=/app/uploads
+EXPOSE 5000
 USER mssql
 ENTRYPOINT ["/entrypoint.sh"]
