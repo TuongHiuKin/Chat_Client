@@ -4,6 +4,37 @@ on:
   pull_request:
     branches: [main]
     types: [closed]
+    # Run only for application, test, or build/deployment changes.
+    # Keep exclusions last so documentation never triggers a release.
+    paths:
+      - 'ChatServer/**'
+      - 'ChatClient/**'
+      - 'Shared/**'
+      - '*.Tests/**'
+      - 'scripts/docker_smoke.py'
+      - '.github/workflows/docker-hub.yml'
+      - '.dockerignore'
+      - '.gitattributes'
+      - 'docker-compose*.yml'
+      - 'docker-compose*.yaml'
+      - 'global.json'
+      - '**/Directory.Build.*'
+      - '**/Directory.Packages.props'
+      - '**/[Nn]u[Gg]et.[Cc]onfig'
+      - '!**/*.[mM][dD]'
+      - '!**/docs/**'
+      - '!**/bin/**'
+      - '!**/obj/**'
+      - '!**/out/**'
+      - '!**/uploads/**'
+      - '!**/.lab2-tests/**'
+      - '!**/.vs/**'
+      - '!**/.vscode/**'
+      - '!**/.idea/**'
+      - '!**/*.user'
+      - '!**/*.log'
+      - '!**/Properties/launchSettings.json'
+      - '!**/Properties/PublishProfiles/**'
 
 permissions:
   contents: read
@@ -19,7 +50,7 @@ env:
 jobs:
   validate:
     if: github.event.pull_request.merged == true
-    name: Build and test Lab2
+    name: Build and test application
     runs-on: windows-2022
     timeout-minutes: 20
     steps:
