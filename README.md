@@ -1,3 +1,5 @@
+> **CI/CD Docker Hub:** Xem [CI-CD.md](CI-CD.md) để thiết lập token, tự build/push image mới và cập nhật container.
+
 > **Lab2:** Xem [LAB2.md](LAB2.md) để chạy mã mới, demo chat nhóm và truyền file 500 MB. Các link EXE/Docker release bên dưới là bản đã phát hành trước đó.
 
 # 💬 ChatSystem - Hệ Thống Chat Real-Time (.NET 10 & TCP Socket)
@@ -29,7 +31,7 @@ Tùy theo nhu cầu sử dụng, dự án cung cấp **2 loại Docker Image ri�
 
 * **Lệnh chạy ngay lập tức (Chỉ đúng 1 câu lệnh):**
   ```bash
-  docker run -d -p 5000:5000 --name chat_all_in_one tuongkien/chat-server:all-in-one
+  docker run -d -p 5000:5000 --name chat_all_in_one -e MSSQL_SA_PASSWORD="YOUR_STRONG_PASSWORD" -v chat_all_sql:/var/opt/mssql -v chat_all_uploads:/app/uploads tuongkien/chat-server:all-in-one
   ```
   *(Container tự động khởi chạy SQL Server, tự kết nối và tạo cơ sở dữ liệu `ChatDB` cùng toàn bộ bảng, sau đó mở cổng `5000` sẵn sàng cho Client kết nối!)*
 

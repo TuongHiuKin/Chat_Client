@@ -1,23 +1,49 @@
 #!/bin/bash
-set -m
+set -Eeuo pipefail
 
-echo "=========================================="
-echo " Starting All-in-One Chat System"
-echo " 1. Microsoft SQL Server 2022"
-echo " 2. ChatServer (.NET 10)"
-echo "=========================================="
+: "${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD when starting the all-in-one image.}"
+# Quote the SQL password as a connection-string value, including embedded quotes.
+quoted_password=${MSSQL_SA_PASSWORD//\"/\"\"}
+export ConnectionStrings__DefaultConnection="Server=127.0.0.1,1433;Database=ChatDB;User Id=sa;Password=\"${quoted_password}\";TrustServerCertificate=True"
 
-# Khởi động SQL Server chạy nền
+sql_pid=""
+app_pid=""
+stop_services() {
+    trap - TERM INT EXIT
+    for pid in "$app_pid" "$sql_pid"; do
+        if [[ -n "$pid" ]]; then kill -TERM "$pid" 2>/dev/null || true; fi
+    done
+    wait || true
+}
+trap stop_services TERM INT EXIT
+
 /opt/mssql/bin/sqlservr &
-SQL_PID=$!
-
-# Khởi động ChatServer
+sql_pid=$!
+# Give a fresh SQL volume enough time to initialize before the app's retries begin.
+ready=false
+for attempt in {1..90}; do
+    if ! kill -0 "$sql_pid" 2>/dev/null; then
+        echo "SQL Server exited during startup." >&2
+        exit 1
+    fi
+    if SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd \
+        -S localhost -U sa -C -l 2 -Q 'SELECT 1' >/dev/null 2>&1; then
+        ready=true
+        break
+    fi
+    sleep 2
+done
+if [[ "$ready" != true ]]; then
+    echo "SQL Server did not become ready in time." >&2
+    exit 1
+fi
 cd /app
 ./ChatServer &
-APP_PID=$!
+app_pid=$!
 
-# Bắt tín hiệu dừng an toàn (Graceful shutdown)
-trap "echo 'Stopping all services...'; kill -TERM $APP_PID $SQL_PID 2>/dev/null; wait" SIGTERM SIGINT
-
-# Giữ container chạy cùng ChatServer
-wait $APP_PID
+# Stop the other service if either SQL Server or ChatServer exits.
+set +e
+wait -n "$sql_pid" "$app_pid"
+status=$?
+set -e
+exit "$status"
