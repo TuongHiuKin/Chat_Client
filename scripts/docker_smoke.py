@@ -16,8 +16,8 @@ def docker(*args, check=True):
 
 
 class Peer:
-    def __init__(self, port):
-        self.socket = socket.create_connection(("127.0.0.1", port), timeout=15)
+    def __init__(self, port, timeout=15):
+        self.socket = socket.create_connection(("127.0.0.1", port), timeout=timeout)
         self.stream = self.socket.makefile("rb")
 
     def send(self, kind, payload=None, conversation=None, content=None):
@@ -79,12 +79,23 @@ def main():
         docker("run", "-d", "--name", name, "--network", name, "-p", "127.0.0.1::5000", *extra, args.image)
         mapping = docker("port", name, "5000/tcp").stdout.strip()
         port = int(mapping.rsplit(":", 1)[1])
+        # Docker's port proxy accepts TCP before the application is ready.
+        # Require a real protocol Pong, which is available only after SQL initialization.
         for _ in range(90):
+            probe = None
             try:
-                with socket.create_connection(("127.0.0.1", port), timeout=1):
-                    break
-            except OSError:
+                probe = Peer(port, timeout=2)
+                probe.send(90)
+                probe.receive(91)
+                break
+            except (OSError, RuntimeError, ValueError):
+                state = docker("inspect", "--format", "{{.State.Running}}", name).stdout.strip()
+                if state != "true":
+                    raise RuntimeError("Chat container exited during startup")
                 time.sleep(2)
+            finally:
+                if probe is not None:
+                    probe.close()
         else:
             raise RuntimeError("Chat server did not become ready")
         for i in range(3):
