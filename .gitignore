@@ -5,6 +5,7 @@ out/
 [Bb]in/
 [Oo]bj/
 [Oo]ut/
+/ChatClient/Publish/
 
 ## Visual Studio & IDEs
 .vs/
@@ -33,3 +34,7 @@ uploads/
 # Python smoke test output
 __pycache__/
 *.pyc
+
+# Archives
+*.rar
+*.zip
