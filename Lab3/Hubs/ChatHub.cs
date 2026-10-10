@@ -73,6 +73,40 @@ namespace Lab3.Hubs
         }
 
         /// <summary>
+        /// Sends an attachment (image or file) to all connected clients.
+        /// </summary>
+        public async Task SendAttachment(string user, string fileName, long fileSize, string fileUrl, bool isImage, string? caption)
+        {
+            if (string.IsNullOrWhiteSpace(user))
+            {
+                await Clients.Caller.SendAsync("ValidationError", "Display name is required.");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(fileUrl))
+            {
+                await Clients.Caller.SendAsync("ValidationError", "File URL is invalid.");
+                return;
+            }
+
+            var trimmedUser = user.Trim();
+            ConnectedUsers[Context.ConnectionId] = trimmedUser;
+            var timestamp = DateTime.Now.ToString("HH:mm:ss");
+
+            var attachment = new
+            {
+                fileName = Path.GetFileName(fileName),
+                fileSize = fileSize,
+                fileUrl = fileUrl,
+                isImage = isImage,
+                caption = caption?.Trim() ?? string.Empty
+            };
+
+            // Broadcast attachment to all clients immediately
+            await Clients.All.SendAsync("ReceiveAttachment", trimmedUser, attachment, timestamp);
+        }
+
+        /// <summary>
         /// Triggered when a new client connects to the Hub.
         /// </summary>
         public override async Task OnConnectedAsync()

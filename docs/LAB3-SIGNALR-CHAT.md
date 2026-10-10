@@ -135,3 +135,7 @@ The application will start on:
 * 🎨 **Visual Distinction for Own Messages:** Sender's own messages are highlighted in primary blue with a `(You)` badge and right-aligned, while other messages are neutral and left-aligned.
 * 🔄 **Connection Status Badge:** Dynamic badge showing `Connecting...`, `Connected`, `Reconnecting...`, or `Disconnected`.
 * 🧹 **Clear Local Messages:** Utility button to clear local message view without affecting other participants.
+* 😀 **Themed Emoji Picker & Colored Emojis:** 6 curated emoji categories (`smileys`, `hearts`, `gestures`, `food`, `fun`, `objects`) with 192 high-resolution colored PNG assets matching Lab 2.
+* 🖼️ **Image Attachments with Preview Modal:** Real-time preview modal before sending, caption support, inline image bubble with hover zoom, lightbox viewer, and direct download button.
+* 📎 **Large File Transfer (up to 500 MB):** Supports uploading files up to 500 MB with live progress percentage bar, cancellation support, dynamic filetype icons (PDF, Word, Excel, Zip, Code, etc.), and instant download links.
+
