@@ -1,0 +1,26 @@
+[
+  {
+    "Username": "admin",
+    "Password": "123",
+    "DisplayName": "Qu\u1EA3n tr\u1ECB vi\u00EAn",
+    "CreatedAt": "2026-10-10T08:23:30.1063904+07:00"
+  },
+  {
+    "Username": "khanglv",
+    "Password": "123",
+    "DisplayName": "khang",
+    "CreatedAt": "2026-10-10T08:24:30.2498105+07:00"
+  },
+  {
+    "Username": "user1",
+    "Password": "123",
+    "DisplayName": "Khang (User 1)",
+    "CreatedAt": "2026-10-10T08:23:30.1053683+07:00"
+  },
+  {
+    "Username": "user2",
+    "Password": "123",
+    "DisplayName": "Vy (User 2)",
+    "CreatedAt": "2026-10-10T08:23:30.1063879+07:00"
+  }
+]
