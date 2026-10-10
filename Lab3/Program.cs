@@ -1,4 +1,6 @@
 using Lab3.Hubs;
+using Lab3.Services;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http.Features;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,6 +14,21 @@ builder.WebHost.ConfigureKestrel(options =>
 {
     options.Limits.MaxRequestBodySize = 524_288_000; // 500 MB
 });
+
+// Đăng ký UserService quản lý tài khoản
+builder.Services.AddSingleton<IUserService, UserService>();
+
+// Đăng ký Cookie Authentication
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/Account/Login";
+        options.LogoutPath = "/Account/Logout";
+        options.ExpireTimeSpan = TimeSpan.FromHours(12);
+    });
+
+// Cấu hình lắng nghe trên tất cả card mạng (0.0.0.0) để máy cùng mạng LAN truy cập được
+builder.WebHost.UseUrls("http://0.0.0.0:5038");
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
@@ -29,11 +46,12 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
 app.UseStaticFiles();
 
 app.UseRouting();
 
+// Authentication & Authorization
+app.UseAuthentication();
 app.UseAuthorization();
 
 // Map SignalR Hub

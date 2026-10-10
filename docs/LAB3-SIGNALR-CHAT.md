@@ -53,8 +53,9 @@ Browser B
    * Browser loads `chat.js` and creates `new signalR.HubConnectionBuilder().withUrl("/chatHub").build()`.
    * On successful handshake, client receives `UpdateUserCount` from server and enables UI controls.
 2. **User Joins (`JoinChat`):**
-   * User inputs a display name (e.g. `Kien`) and clicks **Set Name / Join** (or presses Enter).
-   * Client calls `connection.invoke("JoinChat", user)`.
+   * User logs in or registers via the **Login / Register** page (matching Lab 2 authentication).
+   * Once authenticated, user enters the Chat room with identity already verified.
+   * `chat.js` automatically invokes `connection.invoke("JoinChat", currentUsername)` without needing manual name entry.
    * `ChatHub` registers `ConnectionId -> Username` in a thread-safe `ConcurrentDictionary`.
    * `ChatHub` broadcasts event `UserJoined(user, timestamp)` and `UpdateUserCount(count)` to all clients.
 3. **Sending Message (`SendMessage`):**

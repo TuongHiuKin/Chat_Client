@@ -8,6 +8,15 @@ namespace Lab3.Hubs
         // Tracks active connections and their display names (ConnectionId -> Username)
         private static readonly ConcurrentDictionary<string, string> ConnectedUsers = new();
 
+        private static List<string> GetOnlineUsersList()
+        {
+            return ConnectedUsers.Values
+                .Where(u => !string.IsNullOrWhiteSpace(u))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(u => u)
+                .ToList();
+        }
+
         /// <summary>
         /// Explicitly joins the chat with a display name after SignalR connection is established.
         /// </summary>
@@ -27,12 +36,14 @@ namespace Lab3.Hubs
 
             ConnectedUsers[Context.ConnectionId] = trimmedUser;
             var timestamp = DateTime.Now.ToString("HH:mm:ss");
+            var onlineList = GetOnlineUsersList();
 
             // Broadcast join notification to all connected clients
             await Clients.All.SendAsync("UserJoined", trimmedUser, timestamp);
 
-            // Broadcast updated active user count
-            await Clients.All.SendAsync("UpdateUserCount", ConnectedUsers.Count);
+            // Broadcast updated active user count & member list
+            await Clients.All.SendAsync("UpdateUserCount", onlineList.Count);
+            await Clients.All.SendAsync("UpdateOnlineUsers", onlineList);
         }
 
         /// <summary>
@@ -111,8 +122,9 @@ namespace Lab3.Hubs
         /// </summary>
         public override async Task OnConnectedAsync()
         {
-            // Provide the current user count to the caller
-            await Clients.Caller.SendAsync("UpdateUserCount", ConnectedUsers.Count);
+            var onlineList = GetOnlineUsersList();
+            await Clients.Caller.SendAsync("UpdateUserCount", onlineList.Count);
+            await Clients.Caller.SendAsync("UpdateOnlineUsers", onlineList);
             await base.OnConnectedAsync();
         }
 
@@ -124,9 +136,12 @@ namespace Lab3.Hubs
             if (ConnectedUsers.TryRemove(Context.ConnectionId, out var username))
             {
                 var timestamp = DateTime.Now.ToString("HH:mm:ss");
+                var onlineList = GetOnlineUsersList();
+
                 // Broadcast leave notification to all remaining clients
                 await Clients.All.SendAsync("UserLeft", username, timestamp);
-                await Clients.All.SendAsync("UpdateUserCount", ConnectedUsers.Count);
+                await Clients.All.SendAsync("UpdateUserCount", onlineList.Count);
+                await Clients.All.SendAsync("UpdateOnlineUsers", onlineList);
             }
 
             await base.OnDisconnectedAsync(exception);

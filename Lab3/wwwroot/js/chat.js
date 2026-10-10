@@ -1,8 +1,8 @@
 "use strict";
 
 // ── 1. DOM Element References ────────────────────────────────────────────────
-const userInput = document.getElementById("userInput");
-const joinButton = document.getElementById("joinButton");
+const chatAppContainer = document.getElementById("chatAppContainer");
+const currentLoggedUserEl = document.getElementById("currentLoggedUser");
 const messageInput = document.getElementById("messageInput");
 const sendButton = document.getElementById("sendButton");
 const messagesContainer = document.getElementById("messagesContainer");
@@ -12,6 +12,8 @@ const userCountBadge = document.getElementById("userCountBadge");
 const validationAlert = document.getElementById("validationAlert");
 const charCount = document.getElementById("charCount");
 const clearChatButton = document.getElementById("clearChatButton");
+const onlineUsersList = document.getElementById("onlineUsersList");
+const onlineCounterBadge = document.getElementById("onlineCounterBadge");
 
 // Toolbar & Upload Elements
 const emojiToggleBtn = document.getElementById("emojiToggleBtn");
@@ -54,8 +56,12 @@ if (typeof bootstrap !== "undefined") {
 }
 
 // ── 2. State & Variables ─────────────────────────────────────────────────────
-let currentUsername = "";
-let hasJoined = false;
+// Tên người dùng được truyền từ tài khoản đã đăng nhập
+let currentUsername = (chatAppContainer && chatAppContainer.dataset.currentUser) 
+    ? chatAppContainer.dataset.currentUser 
+    : (currentLoggedUserEl ? currentLoggedUserEl.textContent.trim() : "User");
+
+let hasJoined = true;
 let currentPendingImageFile = null;
 let currentUploadXhr = null;
 
@@ -155,8 +161,15 @@ connection.on("UserLeft", function (user, timestamp) {
 
 connection.on("UpdateUserCount", function (count) {
     if (userCountBadge) {
-        userCountBadge.textContent = `Users online: ${count}`;
+        userCountBadge.textContent = `Online: ${count}`;
     }
+    if (onlineCounterBadge) {
+        onlineCounterBadge.textContent = count;
+    }
+});
+
+connection.on("UpdateOnlineUsers", function (users) {
+    renderOnlineUsersList(users);
 });
 
 connection.on("ValidationError", function (errorMessage) {
@@ -179,7 +192,7 @@ function clearError() {
 function setConnectionStatus(status, bgClass, textClass = "text-white") {
     if (!connectionBadge) return;
     connectionBadge.textContent = status;
-    connectionBadge.className = `badge ${bgClass} ${textClass}`;
+    connectionBadge.className = `badge ${bgClass} ${textClass} me-2`;
 }
 
 function formatBytes(bytes) {
@@ -266,6 +279,54 @@ function createEmojiRenderedContent(text) {
 }
 
 // ── 6. UI Append Methods ─────────────────────────────────────────────────────
+
+function renderOnlineUsersList(users) {
+    if (!onlineUsersList) return;
+    onlineUsersList.innerHTML = "";
+    const list = users || [];
+
+    if (onlineCounterBadge) {
+        onlineCounterBadge.textContent = list.length;
+    }
+    if (userCountBadge) {
+        userCountBadge.textContent = `Online: ${list.length}`;
+    }
+
+    if (list.length === 0) {
+        onlineUsersList.innerHTML = '<div class="text-muted small text-center my-3 fst-italic">Không có ai trực tuyến</div>';
+        return;
+    }
+
+    list.forEach(user => {
+        const isSelf = currentUsername && user.toLowerCase() === currentUsername.toLowerCase();
+        const item = document.createElement("div");
+        item.className = `d-flex align-items-center justify-content-between p-2 rounded mb-1 ${isSelf ? "bg-white border border-primary shadow-sm" : "bg-white border"}`;
+
+        const left = document.createElement("div");
+        left.className = "d-flex align-items-center gap-2 text-truncate";
+
+        const dot = document.createElement("span");
+        dot.className = "online-dot";
+        dot.title = "Đang trực tuyến";
+
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "fw-semibold text-truncate small";
+        nameSpan.textContent = isSelf ? `${user} (Bạn)` : user;
+        if (isSelf) nameSpan.classList.add("text-primary");
+
+        left.appendChild(dot);
+        left.appendChild(nameSpan);
+
+        const badge = document.createElement("span");
+        badge.className = "badge bg-success-subtle text-success border border-success-subtle small py-1 px-2";
+        badge.textContent = "Online";
+        badge.style.fontSize = "0.7rem";
+
+        item.appendChild(left);
+        item.appendChild(badge);
+        onlineUsersList.appendChild(item);
+    });
+}
 
 function appendSystemNotification(message, timestamp, textClass) {
     if (!messagesList) return;
@@ -448,7 +509,7 @@ function renderEmojiCategory(categoryKey) {
 }
 
 function insertEmojiToInput(emoji) {
-    if (!messageInput || messageInput.disabled) return;
+    if (!messageInput) return;
     const start = messageInput.selectionStart ?? messageInput.value.length;
     const end = messageInput.selectionEnd ?? messageInput.value.length;
     const text = messageInput.value;
@@ -501,7 +562,6 @@ document.addEventListener("click", (e) => {
 // Chọn ảnh -> Mở Preview Modal
 if (pickImageBtn) {
     pickImageBtn.addEventListener("click", () => {
-        if (!hasJoined) return;
         if (imageFileInput) imageFileInput.click();
     });
 }
@@ -548,7 +608,6 @@ if (confirmSendImageBtn) {
 // Chọn tệp tin -> Gửi trực tiếp có progress
 if (pickFileBtn) {
     pickFileBtn.addEventListener("click", () => {
-        if (!hasJoined) return;
         if (generalFileInput) generalFileInput.click();
     });
 }
@@ -650,55 +709,10 @@ if (cancelUploadBtn) {
     });
 }
 
-// ── 9. Chat Join & Text Send Handlers ────────────────────────────────────────
-
-function joinChat() {
-    clearError();
-    const rawUser = userInput ? userInput.value.trim() : "";
-
-    if (!rawUser) {
-        showError("Vui lòng nhập tên hiển thị trước khi tham gia.");
-        if (userInput) userInput.focus();
-        return;
-    }
-
-    if (rawUser.length > 50) {
-        showError("Tên hiển thị không được vượt quá 50 ký tự.");
-        return;
-    }
-
-    currentUsername = rawUser;
-
-    connection.invoke("JoinChat", currentUsername)
-        .then(() => {
-            hasJoined = true;
-            if (userInput) userInput.disabled = true;
-            if (joinButton) {
-                joinButton.disabled = true;
-                joinButton.textContent = "✓ Đã tham gia";
-                joinButton.className = "btn btn-success w-100 fw-semibold";
-            }
-            if (messageInput) {
-                messageInput.disabled = false;
-                messageInput.focus();
-            }
-            if (sendButton) sendButton.disabled = false;
-            if (emojiToggleBtn) emojiToggleBtn.disabled = false;
-            if (pickImageBtn) pickImageBtn.disabled = false;
-            if (pickFileBtn) pickFileBtn.disabled = false;
-        })
-        .catch(err => {
-            showError(`Không thể tham gia phòng chat: ${err.toString()}`);
-        });
-}
+// ── 9. Chat Send Handlers ───────────────────────────────────────────────────
 
 function sendTextMessage() {
     clearError();
-    if (!hasJoined) {
-        showError("Bạn cần nhập tên và tham gia chat trước.");
-        return;
-    }
-
     const rawMessage = messageInput ? messageInput.value.trim() : "";
     if (!rawMessage) return;
 
@@ -734,19 +748,6 @@ function updateCharCounter() {
 
 // ── 10. Event Bindings ───────────────────────────────────────────────────────
 
-if (joinButton) {
-    joinButton.addEventListener("click", joinChat);
-}
-
-if (userInput) {
-    userInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-            e.preventDefault();
-            joinChat();
-        }
-    });
-}
-
 if (sendButton) {
     sendButton.addEventListener("click", sendTextMessage);
 }
@@ -777,7 +778,7 @@ connection.onreconnecting(error => {
 connection.onreconnected(connectionId => {
     setConnectionStatus("Đã kết nối", "bg-success");
     clearError();
-    if (hasJoined && currentUsername) {
+    if (currentUsername) {
         connection.invoke("JoinChat", currentUsername).catch(console.error);
     }
 });
@@ -789,12 +790,18 @@ connection.onclose(error => {
     if (sendButton) sendButton.disabled = true;
 });
 
-// Bắt đầu kết nối
+// Bắt đầu kết nối và tự động JoinChat bằng tài khoản đã đăng nhập
 setConnectionStatus("Đang kết nối...", "bg-warning", "text-dark");
 connection.start()
     .then(() => {
         setConnectionStatus("Đã kết nối", "bg-success");
-        if (userInput) userInput.focus();
+        // Tự động gia nhập chat với tên người dùng đã đăng nhập
+        if (currentUsername) {
+            connection.invoke("JoinChat", currentUsername).catch(err => {
+                console.error("Auto JoinChat error:", err);
+            });
+        }
+        if (messageInput) messageInput.focus();
     })
     .catch(err => {
         setConnectionStatus("Lỗi kết nối", "bg-danger");

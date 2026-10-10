@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Lab3.Controllers
 {
+    [Authorize]
     public class ChatController : Controller
     {
         private readonly IWebHostEnvironment _env;
@@ -13,6 +15,12 @@ namespace Lab3.Controllers
 
         public IActionResult Index()
         {
+            var displayName = User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name ?? "User";
+            var username = User.FindFirst("Username")?.Value ?? User.Identity?.Name ?? "User";
+
+            ViewBag.CurrentUser = displayName;
+            ViewBag.Username = username;
+
             return View();
         }
 

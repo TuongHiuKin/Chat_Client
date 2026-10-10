@@ -1,0 +1,137 @@
+@{
+    ViewData["Title"] = "Đăng nhập / Đăng ký - Lab 3";
+    var activeTab = ViewBag.ActiveTab as string ?? "login";
+}
+
+<div class="row justify-content-center align-items-center" style="min-height: 75vh;">
+    <div class="col-md-6 col-lg-5 col-xl-4">
+        <div class="card shadow-lg border-0" style="border-radius: 16px; overflow: hidden;">
+            <!-- Header Card -->
+            <div class="card-header bg-primary text-white text-center py-4">
+                <span class="fs-1 d-block mb-2">💬</span>
+                <h4 class="mb-0 fw-bold">Lab 3 Chat System</h4>
+                <small class="text-white-50">Xác thực tài khoản (Tương tự Lab 2)</small>
+            </div>
+
+            <!-- Tab Switcher (Đăng nhập / Đăng ký) -->
+            <div class="card-body p-4 bg-white">
+                <ul class="nav nav-pills nav-fill mb-4 bg-light p-1 rounded-pill" id="authTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link rounded-pill fw-semibold @(activeTab == "login" ? "active" : "")" 
+                                id="login-tab" data-bs-toggle="pill" data-bs-target="#login-pane" type="button" role="tab">
+                            🔑 Đăng nhập
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link rounded-pill fw-semibold @(activeTab == "register" ? "active" : "")" 
+                                id="register-tab" data-bs-toggle="pill" data-bs-target="#register-pane" type="button" role="tab">
+                            📝 Đăng ký
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="authTabsContent">
+                    <!-- ============================================== -->
+                    <!-- TAB 1: FORM ĐĂNG NHẬP                           -->
+                    <!-- ============================================== -->
+                    <div class="tab-pane fade @(activeTab == "login" ? "show active" : "")" id="login-pane" role="tabpanel">
+                        @if (ViewBag.LoginError != null)
+                        {
+                            <div class="alert alert-danger py-2 small mb-3" role="alert">
+                                ⚠️ @ViewBag.LoginError
+                            </div>
+                        }
+
+                        <form asp-action="Login" method="post">
+                            <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
+
+                            <div class="mb-3">
+                                <label for="loginUsername" class="form-label small fw-bold text-secondary">Tên đăng nhập (Username):</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light">👤</span>
+                                    <input type="text" id="loginUsername" name="username" class="form-control" placeholder="Nhập username..." required autocomplete="username" />
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="loginPassword" class="form-label small fw-bold text-secondary">Mật khẩu (Password):</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light">🔒</span>
+                                    <input type="password" id="loginPassword" name="password" class="form-control" placeholder="Nhập mật khẩu..." required autocomplete="current-password" />
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary w-100 py-2 fw-bold shadow-sm mb-3">
+                                🚀 Đăng nhập vào Chat
+                            </button>
+                        </form>
+
+                        <!-- Tài khoản mẫu để kiểm thử nhanh -->
+                        <div class="p-3 bg-light rounded border small">
+                            <span class="fw-bold text-muted d-block mb-1">⚡ Tài khoản thử nghiệm nhanh (Click để điền):</span>
+                            <div class="d-flex flex-wrap gap-1">
+                                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="fillLogin('user1', '123')">
+                                    user1 (123)
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="fillLogin('user2', '123')">
+                                    user2 (123)
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="fillLogin('admin', '123')">
+                                    admin (123)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ============================================== -->
+                    <!-- TAB 2: FORM ĐĂNG KÝ                             -->
+                    <!-- ============================================== -->
+                    <div class="tab-pane fade @(activeTab == "register" ? "show active" : "")" id="register-pane" role="tabpanel">
+                        @if (ViewBag.RegisterError != null)
+                        {
+                            <div class="alert alert-danger py-2 small mb-3" role="alert">
+                                ⚠️ @ViewBag.RegisterError
+                            </div>
+                        }
+
+                        <form asp-action="Register" method="post">
+                            <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
+
+                            <div class="mb-3">
+                                <label for="regUsername" class="form-label small fw-bold text-secondary">Tên đăng nhập (Username):</label>
+                                <input type="text" id="regUsername" name="username" class="form-control" placeholder="Ví dụ: tuongkien, alex..." required maxlength="50" autocomplete="off" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="regDisplayName" class="form-label small fw-bold text-secondary">Tên hiển thị (Display Name):</label>
+                                <input type="text" id="regDisplayName" name="displayName" class="form-control" placeholder="Tên sẽ hiện khi chat (Ví dụ: Kiên Tường)..." maxlength="50" autocomplete="off" />
+                                <small class="text-muted" style="font-size: 0.75rem;">Nếu để trống sẽ dùng tên đăng nhập.</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="regPassword" class="form-label small fw-bold text-secondary">Mật khẩu:</label>
+                                <input type="password" id="regPassword" name="password" class="form-control" placeholder="Nhập mật khẩu..." required autocomplete="new-password" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="regConfirmPassword" class="form-label small fw-bold text-secondary">Xác nhận mật khẩu:</label>
+                                <input type="password" id="regConfirmPassword" name="confirmPassword" class="form-control" placeholder="Nhập lại mật khẩu..." required autocomplete="new-password" />
+                            </div>
+
+                            <button type="submit" class="btn btn-success w-100 py-2 fw-bold shadow-sm">
+                                📝 Tạo tài khoản & Vào Chat
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function fillLogin(u, p) {
+        document.getElementById('loginUsername').value = u;
+        document.getElementById('loginPassword').value = p;
+    }
+</script>
